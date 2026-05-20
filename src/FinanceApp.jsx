@@ -346,6 +346,10 @@ export default function FinanceOS() {
   }
   const saveRec = useCallback(async () => {
     if (!recForm.description || !recForm.amount) return
+    if (!recForm.account_id) { 
+      alert('Selecione uma conta.')
+      return
+    }
     const payload = {
       ...recForm,
       amount: parseFloat(recForm.amount),
@@ -1462,6 +1466,21 @@ export default function FinanceOS() {
                   onChange={e => setRecForm(fm => ({ ...fm, [f.key]: e.target.value }))} />
               </div>
             ))}
+            <div style={{ ...s.fr, marginBottom: 20 }}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Conta</div>
+              <select style={s.select} value={recForm.account_id}
+                onChange={e => setRecForm(f => ({ ...f, account_id: +e.target.value }))}>
+                {accounts.length === 0
+                  ? <option value="">-- Cadastre uma conta primeiro --</option>
+                  : accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)
+                }
+              </select>
+              {accounts.length === 0 && (     // ← adicionar
+                <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>
+                  ⚠ Vá em "Contas" e cadastre uma conta antes.
+                </div>
+              )}
+            </div>
             <div style={s.fr}>
               <div style={{ ...s.label, marginBottom: 4 }}>Categoria</div>
               <select style={s.select} value={recForm.category_id}
