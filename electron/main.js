@@ -344,6 +344,28 @@ ipcMain.handle('transactions:confirm', (_, id) => {
   return run()
 })
 
+// Transferência de Accounts para Investment
+ipcMain.handle('transactions:transferToInvestment', (_, { account_id, investment_id, amount, description, date, notes }) => {
+  const run = db.transaction(() => {
+    // Debita conta
+    db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(amount, account_id)
+
+    // Credita investimento (aumenta current e invested)
+    db.prepare('UPDATE investments SET invested = invested + ?, current = current + ? WHERE id = ?').run(amount, amount, investment_id)
+
+    // Registra transação como expense (saída da conta)
+    const result = db.prepare(
+      `INSERT INTO transactions
+       (description, amount, type, category_id, account_id, date, tags, notes, status, due_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`
+    ).run(description || 'Aporte em investimento', amount, 'expense', null, account_id, date, '["aporte","investimento"]', notes || '', 'done', '')
+
+    const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid)
+    return { ...row, tags: JSON.parse(row.tags || '[]') }
+  })
+  return run()
+})
+
 // Busca full-text simples
 ipcMain.handle('transactions:search', (_, { query, month, year }) => {
   const like = `%${query}%`
