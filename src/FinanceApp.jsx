@@ -106,22 +106,25 @@ export default function FinanceOS() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
   const [catForm, setCatForm] = useState({ name: '', icon: '📦', type: 'expense', color: '#6B7280', budget: ''})
+  const [recurring, setRecurring] = useState([])
+  const [recForm, setRecForm] = useState({description: '', amount: '', type: 'expense', category_id: 1, account_id: '', day_of_month: 1, tags: '', notes: ''})
 
   useEffect(() => {
     if (!window.db) return;
     let cancelled = false;
     async function loadAll() {
       try {
-        const [accs, cats, txs, invs, gls] = await Promise.all([
+        const [accs, cats, txs, invs, gls, recs] = await Promise.all([
           window.db.accounts.list(),
           window.db.categories.list(),
           window.db.transactions.list({ month: filterMonth, year: filterYear }),
           window.db.investments.list(),
           window.db.goals.list(),
+          window.db.recurring.list(),
         ]);
         if (cancelled) return;
         setAccounts(accs); setCategories(cats); setTransactions(txs);
-        setInvestments(invs); setGoals(gls); setDbReady(true);
+        setInvestments(invs); setGoals(gls); setRecurring(recs); setDbReady(true);
       } catch (err) { if (!cancelled) setDbError(err.message); }
     }
     loadAll();
@@ -325,6 +328,58 @@ export default function FinanceOS() {
     setCategories(prev => prev.filter(c => c.id !== id))
   }, [])
 
+  const openAddRec = () => {
+  setEditTarget(null)
+  const defaultType = 'expense'
+  const firstCat = categories.find(c => c.type === defaultType)
+  setRecForm({
+    description: '', amount: '', type: defaultType,
+    category_id: firstCat?.id || categories[0]?.id || 1,
+    account_id: accounts[0]?.id || '', day_of_month: 1, tags: '', notes: ''
+  })
+  setShowModal('rec')
+}
+  const openEditRec = (r) => {
+    setEditTarget(r)
+    setRecForm({ ...r, amount: String(r.amount), tags: (r.tags || []).join(', ') })
+    setShowModal('rec')
+  }
+  const saveRec = useCallback(async () => {
+    if (!recForm.description || !recForm.amount) return
+    if (!recForm.account_id) { 
+      alert('Selecione uma conta.')
+      return
+    }
+    const payload = {
+      ...recForm,
+      amount: parseFloat(recForm.amount),
+      day_of_month: parseInt(recForm.day_of_month) || 1,
+      tags: recForm.tags ? recForm.tags.split(',').map(t => t.trim()).filter(Boolean) : []
+    }
+    if (editTarget) {
+      if (window.db) {
+        const saved = await window.db.recurring.update({ id: editTarget.id, ...payload })
+        setRecurring(prev => prev.map(r => r.id === editTarget.id ? saved : r))
+      } else {
+        setRecurring(prev => prev.map(r => r.id === editTarget.id ? { ...payload, id: editTarget.id } : r))
+      }
+    } else {
+      if (window.db) {
+        const saved = await window.db.recurring.create(payload)
+        setRecurring(prev => [...prev, saved])
+      } else {
+        setRecurring(prev => [...prev, { ...payload, id: Date.now() }])
+      }
+    }
+    setShowModal(null); setEditTarget(null)
+  }, [recForm, editTarget])
+
+  const deleteRec = useCallback(async (id) => {
+    if (!window.confirm('Excluir este lançamento fixo?')) return
+    if (window.db) await window.db.recurring.delete(id)
+    setRecurring(prev => prev.filter(r => r.id !== id))
+  }, [])
+
   // ── Styles ────────────────────────────────────────────────
   const s = {
     app: { display: "flex", height: "100vh", background: "#0D1117", color: "#E6EDF3", fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif", overflow: "hidden", fontSize: 14 },
@@ -367,6 +422,7 @@ export default function FinanceOS() {
     { id: "accounts",     label: "Contas",        icon: "💳" },
     { id: "budget",       label: "Orçamento",     icon: "◎" },
     { id: "categories",   label: "Categorias",    icon: "🏷️" },
+    { id: "recurring", label: "Fixos / Recorrentes", icon: "🔄" },
     { id: "investments",  label: "Investimentos", icon: "📈" },
     { id: "goals",        label: "Metas",         icon: "🎯" },
     { id: "reports",      label: "Relatórios",    icon: "◫" },
@@ -800,6 +856,70 @@ export default function FinanceOS() {
             ))}
           </div>
         ))}
+      </div>
+    ),
+
+    // RECORRENTES
+    recurring: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={s.row}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>Lançamentos Fixos / Recorrentes</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {window.db && (
+              <button style={s.btn('ghost')} onClick={async () => {
+                const news = await window.db.recurring.generateForMonth({
+                  month: filterMonth, year: filterYear
+                  })
+                  if (news.length) {
+                  const done = news.filter(t => t.status === 'done').length
+                  const pending = news.filter(t => t.status === 'pending').length
+                  const parts = []
+                    if (done) parts.push(`${done} efetivado(s)`)
+                    if (pending) parts.push(`${pending} pendente(s)`)
+                      alert(`${news.length} lançamento(s) gerado(s): ${parts.join(', ')}.`)
+                  // Recarrega contas para refletir saldos atualizados
+                  const accs = await window.db.accounts.list()
+                  setAccounts(accs)
+                  setTransactions(prev => [...news, ...prev])
+                } else {
+                  alert('Nenhum lançamento novo para gerar neste mês.')
+                }
+              }}>⚡ Gerar pendentes ({monthNames[filterMonth]})</button>
+            )}
+            <button style={s.btn('primary')} onClick={openAddRec}>+ Novo fixo</button>
+          </div>
+        </div>
+        {recurring.length === 0
+          ? <div style={{ ...s.card, ...s.empty }}>Nenhum lançamento fixo cadastrado.</div>
+          : recurring.map(r => {
+              const c = cat(r.category_id)
+              const a = acc(r.account_id)
+              return (
+                <div key={r.id} style={{ ...s.card, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: 10,
+                    background: (c?.color || '#6B7280') + '20',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20
+                  }}>{c?.icon}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{r.description}</div>
+                    <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
+                      Dia {r.day_of_month} · {c?.name} · {a?.name}
+                    </div>
+                  </div>
+                  <div style={{
+                    fontWeight: 700, fontSize: 16,
+                    color: r.type === 'income' ? '#10B981' : '#EF4444'
+                  }}>
+                    {r.type === 'income' ? '+' : '-'}{fmt(r.amount)}
+                  </div>
+                  <button onClick={() => openEditRec(r)} style={s.iconBtn}>✏️</button>
+                  <button onClick={() => deleteRec(r.id)}
+                    style={{ ...s.iconBtn, color: '#EF4444' }}>✕</button>
+                </div>
+              )
+            })
+        }
       </div>
     ),
 
@@ -1311,6 +1431,69 @@ export default function FinanceOS() {
                 onClick={closeModal}>Cancelar</button>
               <button style={{ ...s.btn('primary'), flex: 1, justifyContent: 'center' }}
                 onClick={saveCat}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal — Lançamento Fixo */}
+      {showModal === 'rec' && (
+        <div style={s.modal} onClick={closeModal}>
+          <div style={s.modalBox} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>
+              {editTarget ? 'Editar Lançamento Fixo' : 'Novo Lançamento Fixo'}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              {['expense','income'].map(type => (
+                <button key={type} onClick={() => {
+                  const firstCat = categories.find(c => c.type === type)
+                  setRecForm(f => ({ ...f, type, category_id: firstCat?.id || f.category_id }))
+                }}
+                  style={{ ...s.btn(recForm.type === type ? 'primary' : 'ghost'),
+                    flex: 1, justifyContent: 'center' }}>
+                  {type === 'expense' ? '📤 Despesa' : '📥 Receita'}
+                </button>
+              ))}
+            </div>
+            {[
+              { label: 'Descrição *', key: 'description', type: 'text' },
+              { label: 'Valor (R$) *', key: 'amount', type: 'number' },
+              { label: 'Dia do mês (1–31)', key: 'day_of_month', type: 'number' },
+            ].map(f => (
+              <div key={f.key} style={s.fr}>
+                <div style={{ ...s.label, marginBottom: 4 }}>{f.label}</div>
+                <input style={s.input} type={f.type} value={recForm[f.key]}
+                  onChange={e => setRecForm(fm => ({ ...fm, [f.key]: e.target.value }))} />
+              </div>
+            ))}            
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Categoria</div>
+              <select style={s.select} value={recForm.category_id}
+                onChange={e => setRecForm(f => ({ ...f, category_id: +e.target.value }))}>
+                {categories.filter(c => c.type === recForm.type)
+                  .map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+              </select>
+            </div>
+            <div style={{ ...s.fr, marginBottom: 20 }}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Conta</div>
+              <select style={s.select} value={recForm.account_id}
+                onChange={e => setRecForm(f => ({ ...f, account_id: +e.target.value }))}>
+                {accounts.length === 0
+                  ? <option value="">-- Cadastre uma conta primeiro --</option>
+                  : accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)
+                }
+              </select>
+              {accounts.length === 0 && (     // ← adicionar
+                <div style={{ fontSize: 11, color: '#F59E0B', marginTop: 4 }}>
+                  ⚠ Vá em "Contas" e cadastre uma conta antes.
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button style={{ ...s.btn('ghost'), flex: 1, justifyContent: 'center' }}
+                onClick={closeModal}>Cancelar</button>
+              <button style={{ ...s.btn('primary'), flex: 1, justifyContent: 'center' }}
+                onClick={saveRec}>Salvar</button>
             </div>
           </div>
         </div>

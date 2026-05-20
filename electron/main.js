@@ -77,6 +77,19 @@ function initDatabase() {
       color    TEXT NOT NULL DEFAULT '#8B5CF6'
     );
 
+    CREATE TABLE IF NOT EXISTS recurring (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      description TEXT    NOT NULL,
+      amount      REAL    NOT NULL CHECK(amount > 0),
+      type        TEXT    NOT NULL CHECK(type IN ('income','expense')),
+      category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+      account_id  INTEGER REFERENCES accounts(id)   ON DELETE SET NULL,
+      day_of_month INTEGER NOT NULL DEFAULT 1,
+      active      INTEGER NOT NULL DEFAULT 1,
+      tags        TEXT    NOT NULL DEFAULT '[]',
+      notes       TEXT    NOT NULL DEFAULT ''
+    );
+
     -- Garante que sempre existe pelo menos 1 conta e categorias padrão
     CREATE TABLE IF NOT EXISTS _meta (
       key   TEXT PRIMARY KEY,
@@ -403,6 +416,88 @@ ipcMain.handle('goals:delete', (_, id) => {
 ipcMain.handle('goals:addContribution', (_, { id, amount }) => {
   db.prepare('UPDATE goals SET current = MIN(target, current + ?) WHERE id = ?').run(amount, id)
   return db.prepare('SELECT * FROM goals WHERE id = ?').get(id)
+})
+
+// ── Recurring (Lançamentos Fixos) ─────────────────────────
+ipcMain.handle('recurring:list', () => {
+  const rows = db.prepare('SELECT * FROM recurring ORDER BY day_of_month, id').all()
+  return rows.map(r => ({ ...r, tags: JSON.parse(r.tags || '[]') }))
+})
+
+ipcMain.handle('recurring:create', (_, data) => {
+  const { description, amount, type, category_id, account_id,
+          day_of_month = 1, tags = [], notes = '' } = data
+  const result = db.prepare(
+    `INSERT INTO recurring
+     (description, amount, type, category_id, account_id, day_of_month, tags, notes)
+     VALUES (?,?,?,?,?,?,?,?)`
+  ).run(description, amount, type, category_id, account_id, day_of_month,
+        JSON.stringify(tags), notes)
+  const row = db.prepare('SELECT * FROM recurring WHERE id = ?').get(result.lastInsertRowid)
+  return { ...row, tags: JSON.parse(row.tags || '[]') }
+})
+
+ipcMain.handle('recurring:update', (_, { id, ...data }) => {
+  if (Array.isArray(data.tags)) data.tags = JSON.stringify(data.tags)
+  const fields = Object.keys(data).map(k => `${k} = ?`).join(', ')
+  db.prepare(`UPDATE recurring SET ${fields} WHERE id = ?`).run(...Object.values(data), id)
+  const row = db.prepare('SELECT * FROM recurring WHERE id = ?').get(id)
+  return { ...row, tags: JSON.parse(row.tags || '[]') }
+})
+
+ipcMain.handle('recurring:delete', (_, id) => {
+  db.prepare('DELETE FROM recurring WHERE id = ?').run(id)
+  return { success: true }
+})
+
+// Gera lançamentos pendentes para o mês atual a partir dos recorrentes ativos
+ipcMain.handle('recurring:generateForMonth', (_, { month, year }) => {
+  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  const today = new Date()
+  const rows = db.prepare('SELECT * FROM recurring WHERE active = 1').all()
+  const created = []
+
+  const run = db.transaction(() => {
+    for (const r of rows) {
+      const dayStr = String(r.day_of_month).padStart(2, '0')
+      const dateStr = `${prefix}-${dayStr}`
+
+      const exists = db.prepare(
+        `SELECT id FROM transactions
+         WHERE description = ? AND amount = ? AND type = ?
+           AND strftime('%Y-%m', date) = ?`
+      ).get(r.description, r.amount, r.type, prefix)
+      if (exists) continue
+
+      // Se a data de vencimento já chegou → efetiva e ajusta saldo
+      const dueDate = new Date(`${dateStr}T00:00:00`)
+      const isDue = dueDate <= today
+      const status = isDue ? 'done' : 'pending'
+
+      const result = db.prepare(
+        `INSERT INTO transactions
+         (description, amount, type, category_id, account_id,
+          date, tags, notes, status, due_date)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
+      ).run(r.description, r.amount, r.type, r.category_id, r.account_id,
+            dateStr, r.tags, r.notes, status, dateStr)
+
+      if (isDue) {
+        if (r.type === 'income') {
+          db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?')
+            .run(r.amount, r.account_id)
+        } else if (r.type === 'expense') {
+          db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?')
+            .run(r.amount, r.account_id)
+        }
+      }
+
+      const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid)
+      created.push({ ...row, tags: JSON.parse(row.tags || '[]') })
+    }
+  })
+  run()
+  return created
 })
 
 // ── Reports ───────────────────────────────────────────────────

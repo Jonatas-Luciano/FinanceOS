@@ -109,6 +109,15 @@ contextBridge.exposeInMainWorld('db', {
     delete: (id) => invoke('investments:delete', id),
   },
 
+  // ── Recurring ────────────────────────────────────────────
+  recurring: {
+    list: () => invoke('recurring:list'),
+    create: (data) => invoke('recurring:create', data),
+    update: (data) => invoke('recurring:update', data),
+    delete: (id) => invoke('recurring:delete', id),
+    generateForMonth: (params) => invoke('recurring:generateForMonth', params),
+  },
+
   // ── Goals ────────────────────────────────────────────────────
   goals: {
     /** Lista todas as metas. */
