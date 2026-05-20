@@ -1465,7 +1465,15 @@ export default function FinanceOS() {
                 <input style={s.input} type={f.type} value={recForm[f.key]}
                   onChange={e => setRecForm(fm => ({ ...fm, [f.key]: e.target.value }))} />
               </div>
-            ))}
+            ))}            
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Categoria</div>
+              <select style={s.select} value={recForm.category_id}
+                onChange={e => setRecForm(f => ({ ...f, category_id: +e.target.value }))}>
+                {categories.filter(c => c.type === recForm.type)
+                  .map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+              </select>
+            </div>
             <div style={{ ...s.fr, marginBottom: 20 }}>
               <div style={{ ...s.label, marginBottom: 4 }}>Conta</div>
               <select style={s.select} value={recForm.account_id}
@@ -1480,21 +1488,6 @@ export default function FinanceOS() {
                   ⚠ Vá em "Contas" e cadastre uma conta antes.
                 </div>
               )}
-            </div>
-            <div style={s.fr}>
-              <div style={{ ...s.label, marginBottom: 4 }}>Categoria</div>
-              <select style={s.select} value={recForm.category_id}
-                onChange={e => setRecForm(f => ({ ...f, category_id: +e.target.value }))}>
-                {categories.filter(c => c.type === recForm.type)
-                  .map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
-              </select>
-            </div>
-            <div style={{ ...s.fr, marginBottom: 20 }}>
-              <div style={{ ...s.label, marginBottom: 4 }}>Conta</div>
-              <select style={s.select} value={recForm.account_id}
-                onChange={e => setRecForm(f => ({ ...f, account_id: +e.target.value }))}>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button style={{ ...s.btn('ghost'), flex: 1, justifyContent: 'center' }}
