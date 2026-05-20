@@ -154,7 +154,15 @@ contextBridge.exposeInMainWorld('db', {
      * @param {{ month: number, year: number }} params
      */
     categoryBreakdown: (params) => invoke('reports:categoryBreakdown', params),
+
+    /**
+       * Totais e breakdown para um período customizado.
+       * @param {{ from: string, to: string }} params — formato YYYY-MM-DD
+       */
+      byRange: (params) => invoke('reports:byRange', params),
   },
+
+    
 
   // ── Utilitários ──────────────────────────────────────────────
   /** Retorna o caminho do arquivo .db (para backup manual). */

@@ -108,6 +108,10 @@ export default function FinanceOS() {
   const [catForm, setCatForm] = useState({ name: '', icon: '📦', type: 'expense', color: '#6B7280', budget: ''})
   const [recurring, setRecurring] = useState([])
   const [recForm, setRecForm] = useState({description: '', amount: '', type: 'expense', category_id: 1, account_id: '', day_of_month: 1, tags: '', notes: ''})
+  const [reportFrom, setReportFrom] = useState(new Date(thisYear, thisMonth, 1).toISOString().split('T')[0])
+  const [reportTo, setReportTo] = useState(new Date().toISOString().split('T')[0])
+  const [reportData, setReportData] = useState(null)
+  const [reportLoading, setReportLoading] = useState(false)
 
   useEffect(() => {
     if (!window.db) return;
@@ -1047,7 +1051,42 @@ export default function FinanceOS() {
 
     // REPORTS
     reports: (
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={s.row}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>Relatórios</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={s.label}>De</div>
+            <input style={{ ...s.input, width: 140 }} type='date'
+              value={reportFrom} onChange={e => setReportFrom(e.target.value)} />
+            <div style={s.label}>Até</div>
+            <input style={{ ...s.input, width: 140 }} type='date'
+              value={reportTo} onChange={e => setReportTo(e.target.value)} />
+            <button style={s.btn('primary')} onClick={async () => {
+              if (!window.db) return
+              setReportLoading(true)
+              const data = await window.db.reports.byRange({ from: reportFrom, to: reportTo })
+              setReportData(data)
+              setReportLoading(false)
+            }}>🔍 Gerar</button>
+          </div>
+        </div>
+        {reportLoading && <div style={{ color: '#8B5CF6' }}>Carregando...</div>}
+        {/* Cards de totais do período */}
+        {reportData && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+            {[
+              { label: 'Receitas no período', value: fmt(reportData.income), color: '#10B981' },
+              { label: 'Despesas no período', value: fmt(reportData.expense), color: '#EF4444' },
+              { label: 'Resultado', value: fmt(reportData.income - reportData.expense),
+                color: reportData.income >= reportData.expense ? '#10B981' : '#EF4444' },
+            ].map((k, i) => (
+              <div key={i} style={{ ...s.cardSm, borderTop: `3px solid ${k.color}` }}>
+                <div style={s.label}>{k.label}</div>
+                <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4, color: k.color }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+        )}
         <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px" }}>Relatórios</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div style={s.card}>
