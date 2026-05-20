@@ -105,6 +105,7 @@ export default function FinanceOS() {
   const [budgetEdits, setBudgetEdits] = useState({});
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
+  const [catForm, setCatForm] = useState({ name: '', icon: '📦', type: 'expense', color: '#6B7280', budget: ''})
 
   useEffect(() => {
     if (!window.db) return;
@@ -286,6 +287,44 @@ export default function FinanceOS() {
     setBudgetEdits(prev => { const n = { ...prev }; delete n[catId]; return n; });
   }, [budgetEdits]);
 
+  const openAddCat = () => {
+    setEditTarget(null)
+    setCatForm({ name: '', icon: '📦', type: 'expense', color: '#6B7280', budget: '' })
+    setShowModal('cat')
+  }
+  const openEditCat = (c) => {
+    setEditTarget(c)
+    setCatForm({ ...c, budget: String(c.budget || 0) })
+    setShowModal('cat')
+  }
+  const saveCat = useCallback(async () => {
+    if (!catForm.name) return
+    const payload = { ...catForm, budget: parseFloat(catForm.budget) || 0 }
+    if (editTarget) {
+      if (window.db) {
+        const saved = await window.db.categories.update({ id: editTarget.id, ...payload })
+        setCategories(prev => prev.map(c => c.id === editTarget.id ? saved : c))
+      } else {
+        setCategories(prev => prev.map(c =>
+          c.id === editTarget.id ? { ...payload, id: editTarget.id } : c))
+      }
+    } else {
+      if (window.db) {
+        const saved = await window.db.categories.create(payload)
+        setCategories(prev => [...prev, saved])
+      } else {
+        setCategories(prev => [...prev, { ...payload, id: Date.now() }])
+      }
+    }
+    setShowModal(null); setEditTarget(null)
+  }, [catForm, editTarget])
+
+  const deleteCat = useCallback(async (id) => {
+    if (!window.confirm('Excluir esta categoria? Movimentações perderão a referência.')) return
+    if (window.db) await window.db.categories.delete(id)
+    setCategories(prev => prev.filter(c => c.id !== id))
+  }, [])
+
   // ── Styles ────────────────────────────────────────────────
   const s = {
     app: { display: "flex", height: "100vh", background: "#0D1117", color: "#E6EDF3", fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif", overflow: "hidden", fontSize: 14 },
@@ -327,6 +366,7 @@ export default function FinanceOS() {
     { id: "transactions", label: "Movimentações", icon: "↕" },
     { id: "accounts",     label: "Contas",        icon: "💳" },
     { id: "budget",       label: "Orçamento",     icon: "◎" },
+    { id: "categories",   label: "Categorias",    icon: "🏷️" },
     { id: "investments",  label: "Investimentos", icon: "📈" },
     { id: "goals",        label: "Metas",         icon: "🎯" },
     { id: "reports",      label: "Relatórios",    icon: "◫" },
@@ -719,6 +759,47 @@ export default function FinanceOS() {
             })}
           </div>
         </div>
+      </div>
+    ),
+
+    // CATEGORIAS
+    categories: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={s.row}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>Categorias</div>
+          <button style={s.btn('primary')} onClick={openAddCat}>+ Nova categoria</button>
+        </div>
+        {['expense', 'income'].map(tipo => (
+          <div key={tipo} style={s.card}>
+            <div style={s.sectionTitle}>
+              {tipo === 'expense' ? '📤 Despesas' : '📥 Receitas'}
+            </div>
+            {categories.filter(c => c.type === tipo).map(c => (
+              <div key={c.id} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.04)'
+              }}>
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10,
+                  background: c.color + '20', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontSize: 18
+                }}>{c.icon}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 500 }}>{c.name}</div>
+                  {c.budget > 0 && (
+                    <div style={{ fontSize: 11, color: '#6B7280' }}>
+                      Orçamento: {fmt(c.budget)}
+                    </div>
+                  )}
+                </div>
+                <div style={s.pill(c.color)} />
+                <button onClick={() => openEditCat(c)} style={s.iconBtn}>✏️</button>
+                <button onClick={() => deleteCat(c.id)}
+                  style={{ ...s.iconBtn, color: '#EF4444' }}>✕</button>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     ),
 
@@ -1165,6 +1246,60 @@ export default function FinanceOS() {
             <div style={{ display: "flex", gap: 10 }}>
               <button style={{ ...s.btn("ghost"), flex: 1, justifyContent: "center" }} onClick={closeModal}>Cancelar</button>
               <button style={{ ...s.btn("primary"), flex: 1, justifyContent: "center" }} onClick={saveGoal}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal — Categoria */}
+      {showModal === 'cat' && (
+        <div style={s.modal} onClick={closeModal}>
+          <div style={s.modalBox} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>
+              {editTarget ? 'Editar Categoria' : 'Nova Categoria'}
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Nome *</div>
+              <input style={s.input} type='text' placeholder='Ex: Alimentação'
+                value={catForm.name}
+                onChange={e => setCatForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Ícone (emoji)</div>
+              <input style={s.input} type='text' maxLength={2}
+                value={catForm.icon}
+                onChange={e => setCatForm(f => ({ ...f, icon: e.target.value }))} />
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Tipo</div>
+              <select style={s.select} value={catForm.type}
+                onChange={e => setCatForm(f => ({ ...f, type: e.target.value }))}>
+                <option value='expense'>Despesa</option>
+                <option value='income'>Receita</option>
+              </select>
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Orçamento Mensal (R$)</div>
+              <input style={s.input} type='number' placeholder='0'
+                value={catForm.budget}
+                onChange={e => setCatForm(f => ({ ...f, budget: e.target.value }))} />
+            </div>
+            <div style={{ ...s.fr, marginBottom: 20 }}>
+              <div style={{ ...s.label, marginBottom: 6 }}>Cor</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {swatchColors.map(c => (
+                  <div key={c} onClick={() => setCatForm(f => ({ ...f, color: c }))}
+                    style={{ width: 28, height: 28, borderRadius: '50%', background: c,
+                      cursor: 'pointer',
+                      border: catForm.color === c ? '3px solid white' : '3px solid transparent' }} />
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button style={{ ...s.btn('ghost'), flex: 1, justifyContent: 'center' }}
+                onClick={closeModal}>Cancelar</button>
+              <button style={{ ...s.btn('primary'), flex: 1, justifyContent: 'center' }}
+                onClick={saveCat}>Salvar</button>
             </div>
           </div>
         </div>
