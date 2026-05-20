@@ -1062,11 +1062,19 @@ export default function FinanceOS() {
             <input style={{ ...s.input, width: 140 }} type='date'
               value={reportTo} onChange={e => setReportTo(e.target.value)} />
             <button style={s.btn('primary')} onClick={async () => {
-              if (!window.db) return
+              if (!window.db) {alert('Banco de dados não disponível no modo demo.')
+                return}
               setReportLoading(true)
-              const data = await window.db.reports.byRange({ from: reportFrom, to: reportTo })
-              setReportData(data)
-              setReportLoading(false)
+              setReportData(null)
+              try {
+                const data = await window.db.reports.byRange({ from: reportFrom, to: reportTo })
+                setReportData(data)
+              } catch (err) {
+                console.error('reports:byRange error:', err)
+                alert('Erro ao gerar relatório: ' + err.message)
+              } finally {
+                setReportLoading(false)
+              }
             }}>🔍 Gerar</button>
           </div>
         </div>
@@ -1087,7 +1095,6 @@ export default function FinanceOS() {
             ))}
           </div>
         )}
-        <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px" }}>Relatórios</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
           <div style={s.card}>
             <div style={s.sectionTitle}>Fluxo de Caixa — últimos 6 meses</div>
