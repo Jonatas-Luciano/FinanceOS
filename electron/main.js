@@ -453,25 +453,45 @@ ipcMain.handle('recurring:delete', (_, id) => {
 // Gera lançamentos pendentes para o mês atual a partir dos recorrentes ativos
 ipcMain.handle('recurring:generateForMonth', (_, { month, year }) => {
   const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  const today = new Date()
   const rows = db.prepare('SELECT * FROM recurring WHERE active = 1').all()
   const created = []
+
   const run = db.transaction(() => {
     for (const r of rows) {
-      const dateStr = `${prefix}-${String(r.day_of_month).padStart(2,'0')}`
-      // Verifica se já existe lançamento para este recorrente neste mês
+      const dayStr = String(r.day_of_month).padStart(2, '0')
+      const dateStr = `${prefix}-${dayStr}`
+
       const exists = db.prepare(
         `SELECT id FROM transactions
          WHERE description = ? AND amount = ? AND type = ?
            AND strftime('%Y-%m', date) = ?`
       ).get(r.description, r.amount, r.type, prefix)
       if (exists) continue
+
+      // Se a data de vencimento já chegou → efetiva e ajusta saldo
+      const dueDate = new Date(`${dateStr}T00:00:00`)
+      const isDue = dueDate <= today
+      const status = isDue ? 'done' : 'pending'
+
       const result = db.prepare(
         `INSERT INTO transactions
          (description, amount, type, category_id, account_id,
           date, tags, notes, status, due_date)
-         VALUES (?,?,?,?,?,?,?,?,'pending',?)`
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
       ).run(r.description, r.amount, r.type, r.category_id, r.account_id,
-            dateStr, r.tags, r.notes, dateStr)
+            dateStr, r.tags, r.notes, status, dateStr)
+
+      if (isDue) {
+        if (r.type === 'income') {
+          db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?')
+            .run(r.amount, r.account_id)
+        } else if (r.type === 'expense') {
+          db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?')
+            .run(r.amount, r.account_id)
+        }
+      }
+
       const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid)
       created.push({ ...row, tags: JSON.parse(row.tags || '[]') })
     }

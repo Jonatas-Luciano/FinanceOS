@@ -861,10 +861,18 @@ export default function FinanceOS() {
               <button style={s.btn('ghost')} onClick={async () => {
                 const news = await window.db.recurring.generateForMonth({
                   month: filterMonth, year: filterYear
-                })
-                if (news.length) {
+                  })
+                  if (news.length) {
+                  const done = news.filter(t => t.status === 'done').length
+                  const pending = news.filter(t => t.status === 'pending').length
+                  const parts = []
+                    if (done) parts.push(`${done} efetivado(s)`)
+                    if (pending) parts.push(`${pending} pendente(s)`)
+                      alert(`${news.length} lançamento(s) gerado(s): ${parts.join(', ')}.`)
+                  // Recarrega contas para refletir saldos atualizados
+                  const accs = await window.db.accounts.list()
+                  setAccounts(accs)
                   setTransactions(prev => [...news, ...prev])
-                  alert(`${news.length} lançamento(s) gerado(s) como pendente.`)
                 } else {
                   alert('Nenhum lançamento novo para gerar neste mês.')
                 }
