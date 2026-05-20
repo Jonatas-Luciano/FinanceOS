@@ -606,6 +606,10 @@ export default function FinanceOS() {
     transactions: (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={s.row}>
+          <button style={s.btn("ghost")} onClick={() => {
+            setAporteForm({ account_id: accounts[0]?.id || '', investment_id: investments[0]?.id || '', amount: '', description: 'Aporte', date: new Date().toISOString().split('T')[0], notes: '' })
+            setShowAporteModal(true)
+          }}>💸 Aportar conta → investimento</button>
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px" }}>Movimentações</div>
           <button style={s.btn("primary")} onClick={openAddTx}>+ Nova movimentação</button>
         </div>
@@ -941,11 +945,7 @@ export default function FinanceOS() {
     // INVESTMENTS
     investments: (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={s.row}>
-          <button style={s.btn("ghost")} onClick={() => {
-            setAporteForm({ account_id: accounts[0]?.id || '', investment_id: investments[0]?.id || '', amount: '', description: 'Aporte', date: new Date().toISOString().split('T')[0], notes: '' })
-            setShowAporteModal(true)
-          }}>💸 Aportar</button>
+        <div style={s.row}>          
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px" }}>Investimentos</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button style={s.btn("ghost")} onClick={() => {
