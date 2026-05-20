@@ -46,6 +46,7 @@ function initDatabase() {
       type        TEXT NOT NULL CHECK(type IN ('income','expense','transfer')),
       category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
       account_id  INTEGER REFERENCES accounts(id)   ON DELETE SET NULL,
+      to_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
       date        TEXT NOT NULL,
       tags        TEXT NOT NULL DEFAULT '[]',
       notes       TEXT NOT NULL DEFAULT '',
@@ -237,12 +238,23 @@ ipcMain.handle('transactions:create', (_, tx) => {
     ).run(description, amount, type, category_id, account_id,
           date, tagsJson, notes ?? '', status, due_date)
 
-    // Só ajusta saldo se já efetivado
+    // Ajuste de saldo
     if (status === 'done') {
-      if (type === 'income')
-        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(amount, account_id)
-      else if (type === 'expense')
-        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(amount, account_id)
+      if (type === 'income') {
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?')
+          .run(amount, account_id)
+      } else if (type === 'expense') {
+        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?')
+          .run(amount, account_id)
+      } else if (type === 'transfer') {
+        // Debita origem
+        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?')
+          .run(amount, account_id)
+        // Credita destino
+        if (to_account_id)
+          db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?')
+            .run(amount, to_account_id)
+      }
     }
 
     const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid)
