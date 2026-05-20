@@ -414,6 +414,7 @@ export default function FinanceOS() {
     { id: "accounts",     label: "Contas",        icon: "💳" },
     { id: "budget",       label: "Orçamento",     icon: "◎" },
     { id: "categories",   label: "Categorias",    icon: "🏷️" },
+    { id: "recurring", label: "Fixos / Recorrentes", icon: "🔄" },
     { id: "investments",  label: "Investimentos", icon: "📈" },
     { id: "goals",        label: "Metas",         icon: "🎯" },
     { id: "reports",      label: "Relatórios",    icon: "◫" },
