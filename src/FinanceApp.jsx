@@ -612,7 +612,7 @@ export default function FinanceOS() {
           }}>💸 Aportar conta → investimento</button>
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px" }}>Movimentações</div>
           <button style={s.btn("primary")} onClick={openAddTx}>+ Nova movimentação</button>
-        </div>
+        </div>  
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {[
             { label: "Receitas", value: fmt(totalIncome), color: "#10B981" },
