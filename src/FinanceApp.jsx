@@ -329,12 +329,16 @@ export default function FinanceOS() {
   }, [])
 
   const openAddRec = () => {
-    setEditTarget(null)
-    setRecForm({ description: '', amount: '', type: 'expense',
-      category_id: categories[0]?.id || 1,
-      account_id: accounts[0]?.id || '', day_of_month: 1, tags: '', notes: '' })
-    setShowModal('rec')
-  }
+  setEditTarget(null)
+  const defaultType = 'expense'
+  const firstCat = categories.find(c => c.type === defaultType)
+  setRecForm({
+    description: '', amount: '', type: defaultType,
+    category_id: firstCat?.id || categories[0]?.id || 1,
+    account_id: accounts[0]?.id || '', day_of_month: 1, tags: '', notes: ''
+  })
+  setShowModal('rec')
+}
   const openEditRec = (r) => {
     setEditTarget(r)
     setRecForm({ ...r, amount: String(r.amount), tags: (r.tags || []).join(', ') })
@@ -884,7 +888,7 @@ export default function FinanceOS() {
         {recurring.length === 0
           ? <div style={{ ...s.card, ...s.empty }}>Nenhum lançamento fixo cadastrado.</div>
           : recurring.map(r => {
-              const c = cat(number(r.category_id))
+              const c = cat(r.category_id)
               const a = acc(r.account_id)
               return (
                 <div key={r.id} style={{ ...s.card, display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1437,7 +1441,10 @@ export default function FinanceOS() {
             </div>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               {['expense','income'].map(type => (
-                <button key={type} onClick={() => setRecForm(f => ({ ...f, type }))}
+                <button key={type} onClick={() => {
+                  const firstCat = categories.find(c => c.type === type)
+                  setRecForm(f => ({ ...f, type, category_id: firstCat?.id || f.category_id }))
+                }}
                   style={{ ...s.btn(recForm.type === type ? 'primary' : 'ghost'),
                     flex: 1, justifyContent: 'center' }}>
                   {type === 'expense' ? '📤 Despesa' : '📥 Receita'}
