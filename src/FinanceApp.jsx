@@ -626,8 +626,8 @@ export default function FinanceOS() {
                         {(Array.isArray(t.tags) ? t.tags : []).map(tag => <span key={tag} style={s.tag}>{tag}</span>)}
                       </div>
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 15, color: t.type === "income" ? "#10B981" : "#EF4444", flexShrink: 0 }}>
-                      {t.type === "income" ? "+" : "-"}{fmt(t.amount)}
+                    <div style={{fontWeight: 700, fontSize: 15, flexShrink: 0, color: t.type === 'income' ? '#10B981': t.type === 'transfer' ? '#F59E0B': '#EF4444'}}>
+                      {t.type === 'income' ? '+' : t.type === 'transfer' ? '↔' : '-'}{fmt(t.amount)}
                     </div>
                     <button onClick={() => openEditTx(t)} style={s.iconBtn} title="Editar">✏️</button>
                     <button onClick={() => deleteTx(t.id)} style={{ ...s.iconBtn, color: "#EF4444" }} title="Excluir">✕</button>
@@ -1107,6 +1107,17 @@ export default function FinanceOS() {
               </select>
               {accounts.length === 0 && <div style={{ fontSize: 11, color: "#F59E0B", marginTop: 4 }}>⚠ Vá em "Contas" e cadastre uma conta antes.</div>}
             </div>
+            {txForm.type === 'transfer' && (
+              <div style={{ ...s.fr, marginBottom: 20 }}>
+                <div style={{ ...s.label, marginBottom: 4 }}>Conta de Destino</div>
+                <select style={s.select} value={txForm.to_account_id || ''}
+                  onChange={e => setTxForm(f => ({ ...f, to_account_id: +e.target.value }))}>
+                  {accounts
+                    .filter(a => a.id !== +txForm.account_id)
+                    .map(a => <option key={a.id} value={a.id}>{a.name} ({a.bank})</option>)}
+                </select>
+              </div>
+            )}
             <div style={{ display: "flex", gap: 10 }}>
               <button style={{ ...s.btn("ghost"), flex: 1, justifyContent: "center" }} onClick={closeModal}>Cancelar</button>
               <button style={{ ...s.btn("primary"), flex: 1, justifyContent: "center" }} onClick={saveTx}>Salvar</button>
