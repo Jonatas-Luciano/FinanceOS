@@ -114,7 +114,7 @@ export default function FinanceOS() {
     let cancelled = false;
     async function loadAll() {
       try {
-        const [accs, cats, txs, invs, gls] = await Promise.all([
+        const [accs, cats, txs, invs, gls, recs] = await Promise.all([
           window.db.accounts.list(),
           window.db.categories.list(),
           window.db.transactions.list({ month: filterMonth, year: filterYear }),
@@ -124,7 +124,7 @@ export default function FinanceOS() {
         ]);
         if (cancelled) return;
         setAccounts(accs); setCategories(cats); setTransactions(txs);
-        setInvestments(invs); setGoals(gls); setDbReady(true); setRecurring(recs);
+        setInvestments(invs); setGoals(gls); setRecurring(recs); setDbReady(true);
       } catch (err) { if (!cancelled) setDbError(err.message); }
     }
     loadAll();
@@ -884,7 +884,7 @@ export default function FinanceOS() {
         {recurring.length === 0
           ? <div style={{ ...s.card, ...s.empty }}>Nenhum lançamento fixo cadastrado.</div>
           : recurring.map(r => {
-              const c = cat(r.category_id)
+              const c = cat(number(r.category_id))
               const a = acc(r.account_id)
               return (
                 <div key={r.id} style={{ ...s.card, display: 'flex', alignItems: 'center', gap: 12 }}>
