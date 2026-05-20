@@ -95,7 +95,7 @@ export default function FinanceOS() {
   const [editTarget, setEditTarget] = useState(null);
   const [search, setSearch] = useState("");
   const [filterMonth, setFilterMonth] = useState(thisMonth);
-  const [filterYear] = useState(thisYear);
+  const [filterYear, setFilterYear] = useState(thisYear);
   const [calMonth, setCalMonth] = useState(thisMonth);
   const [calYear, setCalYear] = useState(thisYear);
   const [txForm, setTxForm] = useState({ description: "", amount: "", type: "expense", category_id: 1, account_id: "", date: new Date().toISOString().split("T")[0], tags: "", notes: "",status: 'done', due_date: '', });
@@ -461,6 +461,9 @@ export default function FinanceOS() {
             <select style={{ ...s.select, width: "auto" }} value={filterMonth} onChange={e => setFilterMonth(+e.target.value)}>
               {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
             </select>
+            <select style={{ ...s.select, width: "auto" }} value={filterYear} onChange={e => setFilterYear(+e.target.value)}>
+              {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
             <button style={s.btn("primary")} onClick={openAddTx}>+ Lançamento</button>
           </div>
         </div>
@@ -666,7 +669,10 @@ export default function FinanceOS() {
         <div style={{ display: "flex", gap: 10 }}>
           <input style={{ ...s.input, flex: 1 }} placeholder="🔍  Buscar..." value={search} onChange={e => setSearch(e.target.value)} />
           <select style={{ ...s.select, width: "auto" }} value={filterMonth} onChange={e => setFilterMonth(+e.target.value)}>
-            {monthNames.map((m, i) => <option key={i} value={i}>{m} {filterYear}</option>)}
+            {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+          </select>
+          <select style={{ ...s.select, width: "auto" }} value={filterYear} onChange={e => setFilterYear(+e.target.value)}>
+            {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
         <div style={s.card}>
@@ -752,6 +758,9 @@ export default function FinanceOS() {
           </div>
           <select style={{ ...s.select, width: "auto" }} value={filterMonth} onChange={e => setFilterMonth(+e.target.value)}>
             {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+          </select>
+          <select style={{ ...s.select, width: "auto" }} value={filterYear} onChange={e => setFilterYear(+e.target.value)}>
+            {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         </div>
         {(() => {
