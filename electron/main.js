@@ -531,6 +531,35 @@ ipcMain.handle('reports:categoryBreakdown', (_, { month, year }) => {
   `).all(prefix)
 })
 
+ipcMain.handle('reports:byRange', (_, { from, to }) => {
+  return {
+    income: db.prepare(
+      `SELECT SUM(amount) AS total FROM transactions
+       WHERE type='income' AND status='done' AND date BETWEEN ? AND ?`
+    ).get(from, to)?.total || 0,
+    expense: db.prepare(
+      `SELECT SUM(amount) AS total FROM transactions
+       WHERE type='expense' AND status='done' AND date BETWEEN ? AND ?`
+    ).get(from, to)?.total || 0,
+    byCategory: db.prepare(
+      `SELECT c.id, c.name, c.icon, c.color, c.budget, SUM(t.amount) AS total
+       FROM transactions t
+       JOIN categories c ON c.id = t.category_id
+       WHERE t.type = 'expense' AND t.status = 'done'
+         AND t.date BETWEEN ? AND ?
+       GROUP BY c.id ORDER BY total DESC`
+    ).all(from, to),
+    transactions: (() => {
+      const rows = db.prepare(
+        `SELECT * FROM transactions
+         WHERE date BETWEEN ? AND ? AND status = 'done'
+         ORDER BY date DESC, id DESC`
+      ).all(from, to)
+      return rows.map(t => ({ ...t, tags: JSON.parse(t.tags || '[]') }))
+    })(),
+  }
+})
+
 // ── Backup / Export ───────────────────────────────────────────
 ipcMain.handle('db:exportPath', () => dbPath)
 
