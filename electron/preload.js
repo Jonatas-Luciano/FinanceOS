@@ -92,6 +92,8 @@ contextBridge.exposeInMainWorld('db', {
      * @param {number} id
      */
     confirm: (id) => invoke('transactions:confirm', id),
+
+    transferToInvestment: (data) => invoke('transactions:transferToInvestment', data),
   },
 
   // ── Investments ──────────────────────────────────────────────

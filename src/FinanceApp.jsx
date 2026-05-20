@@ -112,6 +112,8 @@ export default function FinanceOS() {
   const [reportTo, setReportTo] = useState(new Date().toISOString().split('T')[0])
   const [reportData, setReportData] = useState(null)
   const [reportLoading, setReportLoading] = useState(false)
+  const [showAporteModal, setShowAporteModal] = useState(false)
+  const [aporteForm, setAporteForm] = useState({ account_id: '', investment_id: '', amount: '', description: '', date: new Date().toISOString().split('T')[0], notes: '' })
 
   useEffect(() => {
     if (!window.db) return;
@@ -940,8 +942,18 @@ export default function FinanceOS() {
     investments: (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         <div style={s.row}>
+          <button style={s.btn("ghost")} onClick={() => {
+            setAporteForm({ account_id: accounts[0]?.id || '', investment_id: investments[0]?.id || '', amount: '', description: 'Aporte', date: new Date().toISOString().split('T')[0], notes: '' })
+            setShowAporteModal(true)
+          }}>💸 Aportar</button>
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px" }}>Investimentos</div>
-          <button style={s.btn("primary")} onClick={openAddInv}>+ Novo investimento</button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={s.btn("ghost")} onClick={() => {
+              setAporteForm({ account_id: accounts[0]?.id || '', investment_id: investments[0]?.id || '', amount: '', description: 'Aporte', date: new Date().toISOString().split('T')[0], notes: '' })
+              setShowAporteModal(true)
+            }}>💸 Aportar conta → investimento</button>
+            <button style={s.btn("primary")} onClick={openAddInv}>+ Novo investimento</button>
+          </div>
         </div>
         {(() => {
           const totalAplic = investments.reduce((s, i) => s + i.invested, 0);
@@ -1549,6 +1561,73 @@ export default function FinanceOS() {
                 onClick={closeModal}>Cancelar</button>
               <button style={{ ...s.btn('primary'), flex: 1, justifyContent: 'center' }}
                 onClick={saveRec}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAporteModal && (
+        <div style={s.modal} onClick={() => setShowAporteModal(false)}>
+          <div style={s.modalBox} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>💸 Aportar em Investimento</div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Conta de origem *</div>
+              <select style={s.select} value={aporteForm.account_id}
+                onChange={e => setAporteForm(f => ({ ...f, account_id: +e.target.value }))}>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name} — {fmt(a.balance)}</option>)}
+              </select>
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Investimento de destino *</div>
+              <select style={s.select} value={aporteForm.investment_id}
+                onChange={e => setAporteForm(f => ({ ...f, investment_id: +e.target.value }))}>
+                {investments.map(i => <option key={i.id} value={i.id}>{i.name} ({invLabels[i.type] || i.type})</option>)}
+              </select>
+            </div>
+            {[
+              { label: 'Valor (R$) *', key: 'amount', type: 'number', placeholder: '0,00' },
+              { label: 'Descrição', key: 'description', type: 'text', placeholder: 'Aporte' },
+              { label: 'Data', key: 'date', type: 'date' },
+              { label: 'Observações', key: 'notes', type: 'text', placeholder: 'Opcional' },
+            ].map(f => (
+              <div key={f.key} style={s.fr}>
+                <div style={{ ...s.label, marginBottom: 4 }}>{f.label}</div>
+                <input style={s.input} type={f.type} placeholder={f.placeholder}
+                  value={aporteForm[f.key]}
+                  onChange={e => setAporteForm(fm => ({ ...fm, [f.key]: e.target.value }))} />
+              </div>
+            ))}
+            {/* Resumo */}
+            {aporteForm.amount && aporteForm.account_id && (
+              <div style={{ padding: '10px 14px', background: 'rgba(139,92,246,0.1)', borderRadius: 8, fontSize: 12, color: '#8B5CF6', marginBottom: 16 }}>
+                {fmt(accounts.find(a => a.id === +aporteForm.account_id)?.balance || 0)} → saldo após: {fmt((accounts.find(a => a.id === +aporteForm.account_id)?.balance || 0) - parseFloat(aporteForm.amount || 0))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button style={{ ...s.btn('ghost'), flex: 1, justifyContent: 'center' }}
+                onClick={() => setShowAporteModal(false)}>Cancelar</button>
+              <button style={{ ...s.btn('primary'), flex: 1, justifyContent: 'center' }}
+                onClick={async () => {
+                  if (!aporteForm.amount || !aporteForm.account_id || !aporteForm.investment_id) return
+                  const payload = { ...aporteForm, amount: parseFloat(aporteForm.amount) }
+                  if (window.db) {
+                    try {
+                      const tx = await window.db.transactions.transferToInvestment(payload)
+                      setTransactions(prev => [tx, ...prev])
+                      const accs = await window.db.accounts.list()
+                      setAccounts(accs)
+                      const invs = await window.db.investments.list()
+                      setInvestments(invs)
+                    } catch (err) { alert('Erro: ' + err.message); return }
+                  } else {
+                    // Modo demo: atualiza estado local
+                    setAccounts(prev => prev.map(a =>
+                      a.id === +payload.account_id ? { ...a, balance: a.balance - payload.amount } : a))
+                    setInvestments(prev => prev.map(i =>
+                      i.id === +payload.investment_id ? { ...i, invested: i.invested + payload.amount, current: i.current + payload.amount } : i))
+                  }
+                  setShowAporteModal(false)
+                }}>Confirmar Aporte</button>
             </div>
           </div>
         </div>
