@@ -102,15 +102,18 @@ function initDatabase() {
     );
 
     CREATE TABLE IF NOT EXISTS credit_card_expenses (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      card_id       INTEGER NOT NULL REFERENCES credit_cards(id) ON DELETE CASCADE,
-      description   TEXT    NOT NULL,
-      amount        REAL    NOT NULL CHECK(amount > 0),
-      category_id   INTEGER REFERENCES categories(id) ON DELETE SET NULL,
-      date          TEXT    NOT NULL,
-      billing_month TEXT    NOT NULL, -- formato 'YYYY-MM' da fatura
-      paid          INTEGER NOT NULL DEFAULT 0,
-      notes         TEXT    NOT NULL DEFAULT ''
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_id          INTEGER NOT NULL REFERENCES credit_cards(id) ON DELETE CASCADE,
+      description      TEXT    NOT NULL,
+      amount           REAL    NOT NULL CHECK(amount > 0),
+      category_id      INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+      date             TEXT    NOT NULL,
+      billing_month    TEXT    NOT NULL,
+      paid             INTEGER NOT NULL DEFAULT 0,
+      notes            TEXT    NOT NULL DEFAULT '',
+      installments     INTEGER NOT NULL DEFAULT 1,
+      installment_num  INTEGER NOT NULL DEFAULT 1,
+      installment_group TEXT   NOT NULL DEFAULT ''
     );
 
     -- Garante que sempre existe pelo menos 1 conta e categorias padrão
@@ -556,33 +559,54 @@ ipcMain.handle('creditCardExpenses:list', (_, { card_id, billing_month }) => {
   ).all(card_id, billing_month)
 })
 
-ipcMain.handle('creditCardExpenses:create', (_, { card_id, description, amount, category_id, date, notes }) => {
+ipcMain.handle('creditCardExpenses:create', (_, { card_id, description, amount, category_id, date, notes, installments = 1 }) => {
   const card = db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(card_id)
   if (!card) throw new Error('Cartão não encontrado')
 
-  const d = new Date(date + 'T00:00:00')
-  const day = d.getDate()
-  let billYear = d.getFullYear()
-  let billMonth = d.getMonth()
+  const totalInstallments = Math.max(1, parseInt(installments) || 1)
+  const installmentAmount = parseFloat((amount / totalInstallments).toFixed(2))
+  // Corrige diferença de arredondamento na última parcela
+  const lastAmount = parseFloat((amount - installmentAmount * (totalInstallments - 1)).toFixed(2))
 
-  if (day >= card.closing_day) {
-    billMonth += 1
-    if (billMonth > 11) { billMonth = 0; billYear += 1 }
+  const group = totalInstallments > 1 ? `group_${Date.now()}` : ''
+
+  const calcBillingMonth = (baseDate, offsetMonths) => {
+    const d = new Date(baseDate + 'T00:00:00')
+    if (d.getDate() >= card.closing_day) offsetMonths += 1
+    d.setMonth(d.getMonth() + offsetMonths)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
   }
-  const billing_month = `${billYear}-${String(billMonth + 1).padStart(2, '0')}`
 
   const run = db.transaction(() => {
-    const result = db.prepare(
-      `INSERT INTO credit_card_expenses
-       (card_id, description, amount, category_id, date, billing_month, notes)
-       VALUES (?,?,?,?,?,?,?)`
-    ).run(card_id, description, amount, category_id ?? null, date, billing_month, notes ?? '')
+    const inserted = []
+    for (let i = 0; i < totalInstallments; i++) {
+      const parcAmt = i === totalInstallments - 1 ? lastAmount : installmentAmount
+      const billing_month = calcBillingMonth(date, i)
 
-    //desconta do limite disponível
-    db.prepare('UPDATE credit_cards SET limit_amount = limit_amount - ? WHERE id = ?')
-      .run(amount, card_id)
+      const result = db.prepare(
+        `INSERT INTO credit_card_expenses
+         (card_id, description, amount, category_id, date, billing_month, notes, installments, installment_num, installment_group)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
+      ).run(
+        card_id,
+        totalInstallments > 1 ? `${description} (${i + 1}/${totalInstallments})` : description,
+        parcAmt,
+        category_id ?? null,
+        date,
+        billing_month,
+        notes ?? '',
+        totalInstallments,
+        i + 1,
+        group
+      )
 
-    return db.prepare('SELECT * FROM credit_card_expenses WHERE id = ?').get(result.lastInsertRowid)
+      // Desconta do limite disponível por parcela
+      db.prepare('UPDATE credit_cards SET limit_amount = limit_amount - ? WHERE id = ?')
+        .run(parcAmt, card_id)
+
+      inserted.push(db.prepare('SELECT * FROM credit_card_expenses WHERE id = ?').get(result.lastInsertRowid))
+    }
+    return inserted[0] // retorna a primeira para manter compatibilidade
   })
   return run()
 })
