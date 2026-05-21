@@ -114,23 +114,30 @@ export default function FinanceOS() {
   const [reportLoading, setReportLoading] = useState(false)
   const [showAporteModal, setShowAporteModal] = useState(false)
   const [aporteForm, setAporteForm] = useState({ account_id: '', investment_id: '', amount: '', description: '', date: new Date().toISOString().split('T')[0], notes: '' })
+  const [creditCards, setCreditCards] = useState([])
+  const [selectedCard, setSelectedCard] = useState(null)
+  const [selectedBillingMonth, setSelectedBillingMonth] = useState(`${thisYear}-${String(thisMonth + 1).padStart(2, '0')}`)
+  const [cardExpenses, setCardExpenses] = useState([])
+  const [cardForm, setCardForm] = useState({ name: '', limit_amount: '', closing_day: 10, due_day: 15, account_id: '', color: '#EC4899'})
+  const [cardExpForm, setCardExpForm] = useState({ description: '', amount: '', category_id: '', date: new Date().toISOString().split('T')[0], notes: ''})
 
   useEffect(() => {
     if (!window.db) return;
     let cancelled = false;
     async function loadAll() {
       try {
-        const [accs, cats, txs, invs, gls, recs] = await Promise.all([
+        const [accs, cats, txs, invs, gls, recs, cards] = await Promise.all([
           window.db.accounts.list(),
           window.db.categories.list(),
           window.db.transactions.list({ month: filterMonth, year: filterYear }),
           window.db.investments.list(),
           window.db.goals.list(),
           window.db.recurring.list(),
+          window.db.creditCards.list(),
         ]);
         if (cancelled) return;
         setAccounts(accs); setCategories(cats); setTransactions(txs);
-        setInvestments(invs); setGoals(gls); setRecurring(recs); setDbReady(true);
+        setInvestments(invs); setGoals(gls); setRecurring(recs); setCreditCards(cards); setDbReady(true);
       } catch (err) { if (!cancelled) setDbError(err.message); }
     }
     loadAll();
@@ -185,7 +192,7 @@ export default function FinanceOS() {
   const cat = (id) => categories.find(c => c.id === id);
   const acc = (id) => accounts.find(a => a.id === id);
 
-  // ── Transaction CRUD ──────────────────────────────────────
+// ── Transaction CRUD ──────────────────────────────────────
   const openAddTx = () => {
     setEditTarget(null);
     setTxForm({ description: "", amount: "", type: "expense", category_id: categories[0]?.id || 1, account_id: accounts[0]?.id || "", date: new Date().toISOString().split("T")[0], tags: "", notes: "", status: 'done',due_date: '' });
@@ -224,7 +231,7 @@ export default function FinanceOS() {
     setTransactions(prev => prev.filter(t => t.id !== id));
   }, [transactions]);
 
-  // ── Account CRUD ──────────────────────────────────────────
+// ── Account CRUD ──────────────────────────────────────────
   const openAddAcc = () => { setEditTarget(null); setAccForm({ name: "", type: "checking", bank: "", balance: "", color: "#8B5CF6" }); setShowModal("acc"); };
   const openEditAcc = (a) => { setEditTarget(a); setAccForm({ ...a, balance: String(a.balance) }); setShowModal("acc"); };
   const saveAcc = useCallback(async () => {
@@ -245,7 +252,7 @@ export default function FinanceOS() {
     setAccounts(prev => prev.filter(a => a.id !== id));
   }, []);
 
-  // ── Investment CRUD ───────────────────────────────────────
+// ── Investment CRUD ───────────────────────────────────────
   const openAddInv = () => { setEditTarget(null); setInvForm({ name: "", type: "cdb", invested: "", current: "", rate: "", rate_type: "% a.a.", start_date: new Date().toISOString().split("T")[0], maturity: "" }); setShowModal("inv"); };
   const openEditInv = (inv) => { setEditTarget(inv); setInvForm({ ...inv, invested: String(inv.invested), current: String(inv.current), rate: String(inv.rate) }); setShowModal("inv"); };
   const saveInv = useCallback(async () => {
@@ -266,7 +273,7 @@ export default function FinanceOS() {
     setInvestments(prev => prev.filter(i => i.id !== id));
   }, []);
 
-  // ── Goal CRUD ─────────────────────────────────────────────
+// ── Goal CRUD ─────────────────────────────────────────────
   const openAddGoal = () => { setEditTarget(null); setGoalForm({ name: "", target: "", current: "", deadline: "", icon: "🎯", color: "#8B5CF6" }); setShowModal("goal"); };
   const openEditGoal = (g) => { setEditTarget(g); setGoalForm({ ...g, target: String(g.target), current: String(g.current) }); setShowModal("goal"); };
   const saveGoal = useCallback(async () => {
@@ -287,7 +294,7 @@ export default function FinanceOS() {
     setGoals(prev => prev.filter(g => g.id !== id));
   }, []);
 
-  // ── Budget edit ───────────────────────────────────────────
+// ── Budget edit ───────────────────────────────────────────
   const saveBudget = useCallback(async (catId) => {
     const val = parseFloat(budgetEdits[catId]);
     if (isNaN(val)) return;
@@ -386,7 +393,65 @@ export default function FinanceOS() {
     setRecurring(prev => prev.filter(r => r.id !== id))
   }, [])
 
-  // ── Styles ────────────────────────────────────────────────
+// ── Credit Cards CRUD ─────────────────────────────────────────
+  const openAddCard = () => {
+    setEditTarget(null)
+    setCardForm({ name: '', limit_amount: '', closing_day: 10, due_day: 15, account_id: accounts[0]?.id || '', color: '#EC4899' })
+    setShowModal('card')
+  }
+  const openEditCard = (c) => {
+    setEditTarget(c)
+    setCardForm({ ...c, limit_amount: String(c.limit_amount) })
+    setShowModal('card')
+  }
+  const saveCard = useCallback(async () => {
+    if (!cardForm.name) return
+    const payload = { ...cardForm, limit_amount: parseFloat(cardForm.limit_amount) || 0, closing_day: parseInt(cardForm.closing_day), due_day: parseInt(cardForm.due_day) }
+    if (editTarget) {
+      const saved = window.db ? await window.db.creditCards.update({ id: editTarget.id, ...payload }) : { ...payload, id: editTarget.id }
+      setCreditCards(prev => prev.map(c => c.id === editTarget.id ? saved : c))
+    } else {
+      const saved = window.db ? await window.db.creditCards.create(payload) : { ...payload, id: Date.now() }
+      setCreditCards(prev => [...prev, saved])
+    }
+    setShowModal(null); setEditTarget(null)
+  }, [cardForm, editTarget])
+
+  const deleteCard = useCallback(async (id) => {
+    if (!window.confirm('Excluir este cartão e todos os gastos?')) return
+    if (window.db) await window.db.creditCards.delete(id)
+    setCreditCards(prev => prev.filter(c => c.id !== id))
+    if (selectedCard?.id === id) setSelectedCard(null)
+  }, [selectedCard])
+
+  const loadCardExpenses = useCallback(async (cardId, billingMonth) => {
+    if (!window.db) return
+    const exps = await window.db.creditCardExpenses.list({ card_id: cardId, billing_month: billingMonth })
+    setCardExpenses(exps)
+  }, [])
+
+  const saveCardExpense = useCallback(async () => {
+    if (!cardExpForm.description || !cardExpForm.amount || !selectedCard) return
+    const payload = { ...cardExpForm, card_id: selectedCard.id, amount: parseFloat(cardExpForm.amount), category_id: cardExpForm.category_id ? +cardExpForm.category_id : null }
+    const saved = window.db ? await window.db.creditCardExpenses.create(payload) : { ...payload, id: Date.now(), billing_month: selectedBillingMonth, paid: 0 }
+    // Recarrega para pegar o billing_month calculado pelo backend
+    if (window.db) await loadCardExpenses(selectedCard.id, selectedBillingMonth)
+    else setCardExpenses(prev => [saved, ...prev])
+    setShowModal(null)
+  }, [cardExpForm, selectedCard, selectedBillingMonth, loadCardExpenses])
+
+  const payBill = useCallback(async () => {
+    if (!selectedCard || !window.db) return
+    try {
+      const result = await window.db.creditCardExpenses.payBill({ card_id: selectedCard.id, billing_month: selectedBillingMonth })
+      alert(`Fatura paga! Total: ${fmt(result.total)} — vencimento ${fmtDate(result.dueDate)}`)
+      await loadCardExpenses(selectedCard.id, selectedBillingMonth)
+      const accs = await window.db.accounts.list()
+      setAccounts(accs)
+    } catch (err) { alert('Erro: ' + err.message) }
+  }, [selectedCard, selectedBillingMonth, loadCardExpenses])
+
+// ── Styles ────────────────────────────────────────────────
   const s = {
     app: { display: "flex", height: "100vh", background: "#0D1117", color: "#E6EDF3", fontFamily: "'DM Sans','Segoe UI',system-ui,sans-serif", overflow: "hidden", fontSize: 14 },
     sidebar: { width: 220, background: "#161B22", borderRight: "1px solid rgba(255,255,255,0.06)", display: "flex", flexDirection: "column", flexShrink: 0 },
@@ -425,7 +490,8 @@ export default function FinanceOS() {
   const navItems = [
     { id: "dashboard",    label: "Dashboard",     icon: "⊞" },
     { id: "transactions", label: "Movimentações", icon: "↕" },
-    { id: "accounts",     label: "Contas",        icon: "💳" },
+    { id: "accounts",     label: "Contas",        icon: "🏦" },
+    { id: "credit_cards", label: "Cartões",       icon: "💳" },
     { id: "budget",       label: "Orçamento",     icon: "◎" },
     { id: "categories",   label: "Categorias",    icon: "🏷️" },
     { id: "recurring", label: "Fixos / Recorrentes", icon: "🔄" },
@@ -448,7 +514,7 @@ export default function FinanceOS() {
 
   const closeModal = () => { setShowModal(null); setEditTarget(null); };
 
-  // ── PAGES ─────────────────────────────────────────────────
+// ── PAGES ─────────────────────────────────────────────────
   const pages = {
 
     // DASHBOARD
@@ -751,6 +817,118 @@ export default function FinanceOS() {
               </div>
             ))
         }
+      </div>
+    ),
+
+    // CREDIT CARDS
+    credit_cards: (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={s.row}>
+          <div style={{ fontSize: 22, fontWeight: 700 }}>Cartões de Crédito</div>
+          <button style={s.btn('primary')} onClick={openAddCard}>+ Novo cartão</button>
+        </div>
+
+        {/* Grid de cartões */}
+        {creditCards.length === 0
+          ? <div style={{ ...s.card, ...s.empty }}>Nenhum cartão cadastrado.</div>
+          : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              {creditCards.map(card => {
+                const a = acc(card.account_id)
+                return (
+                  <div key={card.id} onClick={() => { setSelectedCard(card); loadCardExpenses(card.id, selectedBillingMonth) }}
+                    style={{ ...s.card, borderTop: `4px solid ${card.color}`, cursor: 'pointer',
+                      outline: selectedCard?.id === card.id ? `2px solid ${card.color}` : 'none' }}>
+                    <div style={s.row}>
+                      <div style={{ fontWeight: 700, fontSize: 15 }}>{card.name}</div>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button onClick={e => { e.stopPropagation(); openEditCard(card) }} style={s.iconBtn}>✏️</button>
+                        <button onClick={e => { e.stopPropagation(); deleteCard(card.id) }} style={{ ...s.iconBtn, color: '#EF4444' }}>✕</button>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
+                      Fecha dia {card.closing_day} · Vence dia {card.due_day}
+                    </div>
+                    {a && <div style={{ fontSize: 12, color: '#6B7280' }}>Débito: {a.name}</div>}
+                    <div style={{ marginTop: 10 }}>
+                      <div style={s.label}>Limite</div>
+                      <div style={{ fontWeight: 700, color: card.color }}>{fmt(card.limit_amount)}</div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+        }
+
+        {/* Detalhe da fatura */}
+        {selectedCard && (
+          <div style={s.card}>
+            <div style={s.row}>
+              <div style={{ fontSize: 16, fontWeight: 700 }}>
+                Fatura — {selectedCard.name}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type='month' value={selectedBillingMonth}
+                  onChange={e => { setSelectedBillingMonth(e.target.value); loadCardExpenses(selectedCard.id, e.target.value) }}
+                  style={{ ...s.input, width: 160 }} />
+                <button style={s.btn('primary')} onClick={() => {
+                  setCardExpForm({ description: '', amount: '', category_id: categories[0]?.id || '', date: new Date().toISOString().split('T')[0], notes: '' })
+                  setShowModal('cardExp')
+                }}>+ Gasto</button>
+                <button style={{ ...s.btn('ghost'), borderColor: '#10B981', color: '#10B981' }} onClick={payBill}>
+                  💰 Pagar fatura
+                </button>
+              </div>
+            </div>
+
+            {/* Totais da fatura */}
+            {(() => {
+              const total = cardExpenses.reduce((s, e) => s + e.amount, 0)
+              const paid = cardExpenses.filter(e => e.paid).reduce((s, e) => s + e.amount, 0)
+              const pending = total - paid
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, margin: '16px 0' }}>
+                  {[
+                    { label: 'Total da fatura', value: fmt(total), color: '#EF4444' },
+                    { label: 'Já pago', value: fmt(paid), color: '#10B981' },
+                    { label: 'Pendente', value: fmt(pending), color: '#F59E0B' },
+                  ].map((k, i) => (
+                    <div key={i} style={{ ...s.cardSm, background: '#0D1117', textAlign: 'center' }}>
+                      <div style={s.label}>{k.label}</div>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: k.color, marginTop: 4 }}>{k.value}</div>
+                    </div>
+                  ))}
+                </div>
+              )
+            })()}
+
+            {/* Lista de gastos */}
+            {cardExpenses.length === 0
+              ? <div style={{ color: '#6B7280', textAlign: 'center', padding: '24px 0' }}>Nenhum gasto nesta fatura.</div>
+              : cardExpenses.map((e, idx) => {
+                  const c = cat(e.category_id)
+                  return (
+                    <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
+                      borderBottom: idx < cardExpenses.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                      opacity: e.paid ? 0.5 : 1 }}>
+                      <div style={{ width: 34, height: 34, borderRadius: 8, background: (c?.color || '#6B7280') + '20',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{c?.icon || '💳'}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>{e.description}</div>
+                        <div style={{ fontSize: 11, color: '#6B7280' }}>{fmtDate(e.date)} {c && `· ${c.name}`} {e.paid ? '· ✅ pago' : ''}</div>
+                      </div>
+                      <div style={{ fontWeight: 700, color: '#EF4444' }}>{fmt(e.amount)}</div>
+                      {!e.paid && (
+                        <button onClick={async () => {
+                          if (window.db) await window.db.creditCardExpenses.delete(e.id)
+                          setCardExpenses(prev => prev.filter(x => x.id !== e.id))
+                        }} style={{ ...s.iconBtn, color: '#EF4444' }}>✕</button>
+                      )}
+                    </div>
+                  )
+                })
+            }
+          </div>
+        )}
       </div>
     ),
 
@@ -1349,6 +1527,101 @@ export default function FinanceOS() {
             <div style={{ display: "flex", gap: 10 }}>
               <button style={{ ...s.btn("ghost"), flex: 1, justifyContent: "center" }} onClick={closeModal}>Cancelar</button>
               <button style={{ ...s.btn("primary"), flex: 1, justifyContent: "center" }} onClick={saveAcc}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal — Cartão de Crédito */}
+      {showModal === 'card' && (
+        <div style={s.modal} onClick={closeModal}>
+          <div style={s.modalBox} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>
+              {editTarget ? 'Editar Cartão' : 'Novo Cartão de Crédito'}
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Nome *</div>
+              <input style={s.input} type='text' placeholder='Ex: Nubank Roxinho'
+                value={cardForm.name} onChange={e => setCardForm(f => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Limite (R$)</div>
+              <input style={s.input} type='number' value={cardForm.limit_amount}
+                onChange={e => setCardForm(f => ({ ...f, limit_amount: e.target.value }))} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={s.fr}>
+                <div style={{ ...s.label, marginBottom: 4 }}>Dia de fechamento</div>
+                <input style={s.input} type='number' min={1} max={31} value={cardForm.closing_day}
+                  onChange={e => setCardForm(f => ({ ...f, closing_day: e.target.value }))} />
+              </div>
+              <div style={s.fr}>
+                <div style={{ ...s.label, marginBottom: 4 }}>Dia de vencimento</div>
+                <input style={s.input} type='number' min={1} max={31} value={cardForm.due_day}
+                  onChange={e => setCardForm(f => ({ ...f, due_day: e.target.value }))} />
+              </div>
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Conta de débito vinculada</div>
+              <select style={s.select} value={cardForm.account_id}
+                onChange={e => setCardForm(f => ({ ...f, account_id: +e.target.value }))}>
+                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+            </div>
+            <div style={{ ...s.fr, marginBottom: 20 }}>
+              <div style={{ ...s.label, marginBottom: 6 }}>Cor</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {swatchColors.map(c => (
+                  <div key={c} onClick={() => setCardForm(f => ({ ...f, color: c }))}
+                    style={{ width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer',
+                      border: cardForm.color === c ? '3px solid white' : '3px solid transparent' }} />
+                ))}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button style={{ ...s.btn('ghost'), flex: 1, justifyContent: 'center' }} onClick={closeModal}>Cancelar</button>
+              <button style={{ ...s.btn('primary'), flex: 1, justifyContent: 'center' }} onClick={saveCard}>Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal — Gasto no Cartão */}
+      {showModal === 'cardExp' && (
+        <div style={s.modal} onClick={closeModal}>
+          <div style={s.modalBox} onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>Novo Gasto — {selectedCard?.name}</div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Descrição *</div>
+              <input style={s.input} type='text' placeholder='Ex: Restaurante'
+                value={cardExpForm.description} onChange={e => setCardExpForm(f => ({ ...f, description: e.target.value }))} />
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Valor (R$) *</div>
+              <input style={s.input} type='number' value={cardExpForm.amount}
+                onChange={e => setCardExpForm(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Data</div>
+              <input style={s.input} type='date' value={cardExpForm.date}
+                onChange={e => setCardExpForm(f => ({ ...f, date: e.target.value }))} />
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Categoria</div>
+              <select style={s.select} value={cardExpForm.category_id}
+                onChange={e => setCardExpForm(f => ({ ...f, category_id: +e.target.value }))}>
+                {categories.filter(c => c.type === 'expense').map(c =>
+                  <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+              </select>
+            </div>
+            <div style={{ ...s.fr, marginBottom: 20 }}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Observações</div>
+              <input style={s.input} type='text' value={cardExpForm.notes}
+                onChange={e => setCardExpForm(f => ({ ...f, notes: e.target.value }))} />
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button style={{ ...s.btn('ghost'), flex: 1, justifyContent: 'center' }} onClick={closeModal}>Cancelar</button>
+              <button style={{ ...s.btn('primary'), flex: 1, justifyContent: 'center' }} onClick={saveCardExpense}>Salvar</button>
             </div>
           </div>
         </div>

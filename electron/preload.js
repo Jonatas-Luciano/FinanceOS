@@ -120,7 +120,26 @@ contextBridge.exposeInMainWorld('db', {
     generateForMonth: (params) => invoke('recurring:generateForMonth', params),
   },
 
-  // ── Goals ────────────────────────────────────────────────────
+// ── Credit Cards ─────────────────────────────────────────────
+  creditCards: {
+    list:   ()     => invoke('creditCards:list'),
+    create: (data) => invoke('creditCards:create', data),
+    update: (data) => invoke('creditCards:update', data),
+    delete: (id)   => invoke('creditCards:delete', id),
+  },
+
+// ── Credit Card Expenses ──────────────────────────────────────
+  creditCardExpenses: {
+    /** @param {{ card_id, billing_month }} params */
+    list:    (params) => invoke('creditCardExpenses:list', params),
+    /** @param {{ card_id, description, amount, category_id, date, notes }} data */
+    create:  (data)   => invoke('creditCardExpenses:create', data),
+    delete:  (id)     => invoke('creditCardExpenses:delete', id),
+    /** Paga fatura, gera transaction e debita conta. @param {{ card_id, billing_month }} */
+    payBill: (params) => invoke('creditCardExpenses:payBill', params),
+  },
+
+// ── Goals ────────────────────────────────────────────────────
   goals: {
     /** Lista todas as metas. */
     list: () => invoke('goals:list'),
