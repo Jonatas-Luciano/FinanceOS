@@ -564,9 +564,10 @@ export default function FinanceOS() {
     { id: "credit_cards", label: "Cartões",       icon: "💳" },
     { id: "budget",       label: "Orçamento",     icon: "◎" },
     { id: "categories",   label: "Categorias",    icon: "🏷️" },
-    { id: "recurring", label: "Fixos / Recorrentes", icon: "🔄" },
+    { id: "recurring",    label: "Fixos / Recorrentes", icon: "🔄" },
     { id: "investments",  label: "Investimentos", icon: "📈" },
     { id: "goals",        label: "Metas",         icon: "🎯" },
+    { id: "reports",      label: "Relatórios",    icon: "📋" },
     { id: "calendar",     label: "Calendário",    icon: "▦" },
   ];
 
