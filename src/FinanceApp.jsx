@@ -2046,8 +2046,8 @@ function InvestmentSimulator({ s }) {
   const gain = fv - totalInvested;
 
   const sliders = [
-    { label: "Valor inicial (R$)", value: amount,   min: 0,    max: 500000, step: 500,  set: setAmount,  display: `R$ ${amount.toLocaleString("pt-BR")}` },
-    { label: "Aporte mensal (R$)", value: monthly,  min: 0,    max: 10000,  step: 100,  set: setMonthly, display: `R$ ${monthly.toLocaleString("pt-BR")}` },
+    { label: "Valor inicial (R$)", value: amount,   min: 0,    max: 200000, step: 500,  set: setAmount,  display: `R$ ${amount.toLocaleString("pt-BR")}` },
+    { label: "Aporte mensal (R$)", value: monthly,  min: 0,    max: 10000,  step: 50,  set: setMonthly, display: `R$ ${monthly.toLocaleString("pt-BR")}` },
     { label: "Taxa anual (%)",     value: rate,     min: 0.5,  max: 30,     step: 0.1,  set: setRate,    display: `${rate.toFixed(1)}%` },
     { label: "Prazo (anos)",       value: years,    min: 1,    max: 30,     step: 1,    set: setYears,   display: `${years} anos` },
   ];
