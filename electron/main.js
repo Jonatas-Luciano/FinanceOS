@@ -498,6 +498,12 @@ ipcMain.handle('recurring:generateForMonth', (_, { month, year }) => {
       const recCreatedAt = r.created_at || '1970-01-01'
       const recCreatedMonth = recCreatedAt.substring(0, 7) // 'YYYY-MM'
       if (prefix < recCreatedMonth) continue
+
+      // Se criado no mesmo mês e o dia de criação > day_of_month, pula para o mês seguinte
+      if (prefix === recCreatedMonth) {
+        const createdDay = parseInt(recCreatedAt.split('-')[2], 10)
+        if (createdDay > r.day_of_month) continue
+      }
       if (r.end_date) {
         const endMonth = r.end_date.substring(0, 7) // 'YYYY-MM'
         if (prefix > endMonth) continue
