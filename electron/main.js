@@ -90,6 +90,29 @@ function initDatabase() {
       notes       TEXT    NOT NULL DEFAULT ''
     );
 
+    CREATE TABLE IF NOT EXISTS credit_cards (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      name         TEXT    NOT NULL,
+      limit_amount REAL    NOT NULL DEFAULT 0,   -- limite disponível (decrementado/restaurado)
+      limit_total  REAL    NOT NULL DEFAULT 0,   -- limite original (só para exibição)
+      closing_day  INTEGER NOT NULL DEFAULT 1,
+      due_day      INTEGER NOT NULL DEFAULT 10,
+      account_id   INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+      color        TEXT    NOT NULL DEFAULT '#EC4899'
+    );
+
+    CREATE TABLE IF NOT EXISTS credit_card_expenses (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      card_id       INTEGER NOT NULL REFERENCES credit_cards(id) ON DELETE CASCADE,
+      description   TEXT    NOT NULL,
+      amount        REAL    NOT NULL CHECK(amount > 0),
+      category_id   INTEGER REFERENCES categories(id) ON DELETE SET NULL,
+      date          TEXT    NOT NULL,
+      billing_month TEXT    NOT NULL, -- formato 'YYYY-MM' da fatura
+      paid          INTEGER NOT NULL DEFAULT 0,
+      notes         TEXT    NOT NULL DEFAULT ''
+    );
+
     -- Garante que sempre existe pelo menos 1 conta e categorias padrão
     CREATE TABLE IF NOT EXISTS _meta (
       key   TEXT PRIMARY KEY,
@@ -117,18 +140,15 @@ function seedIfEmpty() {
 
   // Accounts
   insertAccount.run('Conta Corrente', 'checking',  'Nubank',  4850.00,  '#8B5CF6')
-  insertAccount.run('Poupança',       'savings',   'Itaú',    12300.00, '#10B981')
-  insertAccount.run('Carteira',       'wallet',    'Dinheiro', 350.00,  '#F59E0B')
-  insertAccount.run('Investimentos',  'investment','XP',      45200.00, '#3B82F6')
 
   // Categories — expense
-  insertCategory.run('Alimentação', '🍽️', 'expense', '#EF4444', 1200)
-  insertCategory.run('Transporte',  '🚗', 'expense', '#F59E0B',  500)
-  insertCategory.run('Moradia',     '🏠', 'expense', '#8B5CF6', 2000)
-  insertCategory.run('Saúde',       '💊', 'expense', '#10B981',  400)
-  insertCategory.run('Lazer',       '🎮', 'expense', '#3B82F6',  600)
-  insertCategory.run('Educação',    '📚', 'expense', '#06B6D4',  300)
-  insertCategory.run('Vestuário',   '👔', 'expense', '#EC4899',  250)
+  insertCategory.run('Alimentação', '🍽️', 'expense', '#EF4444',  0)
+  insertCategory.run('Transporte',  '🚗', 'expense', '#F59E0B',  0)
+  insertCategory.run('Moradia',     '🏠', 'expense', '#8B5CF6',  0)
+  insertCategory.run('Saúde',       '💊', 'expense', '#10B981',  0)
+  insertCategory.run('Lazer',       '🎮', 'expense', '#3B82F6',  0)
+  insertCategory.run('Educação',    '📚', 'expense', '#06B6D4',  0)
+  insertCategory.run('Vestuário',   '👔', 'expense', '#EC4899',  0)
   // Categories — income
   insertCategory.run('Salário',     '💼', 'income',  '#10B981',  0)
   insertCategory.run('Freelance',   '💻', 'income',  '#3B82F6',  0)
@@ -136,33 +156,13 @@ function seedIfEmpty() {
 
   // Transactions (mês atual)
   const d = (day) => `${y}-${m}-${String(day).padStart(2,'0')}`
-  insertTx.run('Salário',          7500,   'income',  8, 1, d(5),  '["fixo"]',          '', 'done', '')
-  insertTx.run('Supermercado',     485.30, 'expense', 1, 1, d(7),  '["mercado"]',       'Compra semanal', 'done', '')
-  insertTx.run('Uber',             34.50,  'expense', 2, 1, d(8),  '[]',                '', 'done', '')
-  insertTx.run('Aluguel',          1800,   'expense', 3, 1, d(10), '["fixo","moradia"]','', 'done', '')
-  insertTx.run('Restaurante Sushi',120,    'expense', 1, 3, d(12), '["restaurante"]',   'Aniversário', 'done', '')
-  insertTx.run('Freelance Design', 1200,   'income',  9, 1, d(14), '["extra"]',         'Projeto logo marca', 'done', '')
-  insertTx.run('Academia',         89.90,  'expense', 4, 1, d(1),  '["fixo"]',          '', 'done', '')
-  insertTx.run('Netflix',          39.90,  'expense', 5, 1, d(3),  '["assinatura"]',    '', 'done', '')
-  insertTx.run('Curso Udemy',      74.90,  'expense', 6, 1, d(16), '[]',                'React avançado', 'done', '')
-  insertTx.run('Posto Gasolina',   180,    'expense', 2, 3, d(18), '[]',                '', 'done', '')
-  insertTx.run('Farmácia',         67.40,  'expense', 4, 1, d(9),  '[]',                '', 'done', '')
-  insertTx.run('Dividendos XP',    320,    'income', 10, 4, d(15), '["passivo"]',       '', 'done', '')
-  insertTx.run('Camisa polo',      159.90, 'expense', 7, 1, d(20), '[]',                '', 'done', '')
-  insertTx.run('iFood',            55.80,  'expense', 1, 1, d(22), '[]',                '', 'done', '')
+  insertTx.run('Salário',          2500,   'income',  8, 1, d(5),  '["fixo"]',          '', 'done', '')
 
   // Investments
   insertInv.run('Tesouro Selic 2027',      'tesouro_direto', 10000, 10850, 11.65, '% a.a.',  '2023-03-01', '2027-03-01')
-  insertInv.run('CDB Itaú 110% CDI',       'cdb',            15000, 16420, 110,   '% CDI',   '2023-06-15', '2025-06-15')
-  insertInv.run('Fundo Imobiliário MXRF11','fii',             8200,  9130,  0.92,  '% a.m.',  '2022-11-01', null)
-  insertInv.run('Ações PETR4',             'acoes',           6000,  7200,  0,     'variável', '2023-01-10', null)
-  insertInv.run('LCI BB 98% CDI',          'lci',             6000,  6600,  98,    '% CDI',   '2024-01-01', '2025-12-31')
 
   // Goals
   insertGoal.run('Reserva de Emergência', 30000, 18400, '2025-12-31', '🛡️', '#10B981')
-  insertGoal.run('Viagem Europa',         15000,  4200, '2026-07-01', '✈️', '#3B82F6')
-  insertGoal.run('Notebook novo',          8000,  3500, '2025-09-01', '💻', '#8B5CF6')
-  insertGoal.run('Entrada apartamento',   80000, 22000, '2028-01-01', '🏠', '#F59E0B')
 
   db.prepare("INSERT INTO _meta (key, value) VALUES ('seeded', '1')").run()
 }
@@ -520,6 +520,129 @@ ipcMain.handle('recurring:generateForMonth', (_, { month, year }) => {
   })
   run()
   return created
+})
+
+// ── Credit Cards ──────────────────────────────────────────────
+ipcMain.handle('creditCards:list', () => {
+  return db.prepare('SELECT * FROM credit_cards ORDER BY id').all()
+})
+
+ipcMain.handle('creditCards:create', (_, { name, limit_amount, closing_day, due_day, account_id, color }) => {
+  const result = db.prepare(
+    'INSERT INTO credit_cards (name, limit_amount, limit_total, closing_day, due_day, account_id, color) VALUES (?,?,?,?,?,?,?)'
+  ).run(name, limit_amount ?? 0, limit_amount ?? 0, closing_day ?? 1, due_day ?? 10, account_id ?? null, color ?? '#EC4899')
+  return db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(result.lastInsertRowid)
+})
+
+ipcMain.handle('creditCards:update', (_, { id, ...data }) => {
+  // Se o usuário editar o limite, atualiza também o limit_total
+  if (data.limit_amount !== undefined) {
+    data.limit_total = data.limit_amount
+  }
+  const fields = Object.keys(data).map(k => `${k} = ?`).join(', ')
+  db.prepare(`UPDATE credit_cards SET ${fields} WHERE id = ?`).run(...Object.values(data), id)
+  return db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(id)
+})
+
+ipcMain.handle('creditCards:delete', (_, id) => {
+  db.prepare('DELETE FROM credit_cards WHERE id = ?').run(id)
+  return { success: true }
+})
+
+// ── Credit Card Expenses ──────────────────────────────────────
+ipcMain.handle('creditCardExpenses:list', (_, { card_id, billing_month }) => {
+  return db.prepare(
+    'SELECT * FROM credit_card_expenses WHERE card_id = ? AND billing_month = ? ORDER BY date DESC, id DESC'
+  ).all(card_id, billing_month)
+})
+
+ipcMain.handle('creditCardExpenses:create', (_, { card_id, description, amount, category_id, date, notes }) => {
+  const card = db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(card_id)
+  if (!card) throw new Error('Cartão não encontrado')
+
+  const d = new Date(date + 'T00:00:00')
+  const day = d.getDate()
+  let billYear = d.getFullYear()
+  let billMonth = d.getMonth()
+
+  if (day >= card.closing_day) {
+    billMonth += 1
+    if (billMonth > 11) { billMonth = 0; billYear += 1 }
+  }
+  const billing_month = `${billYear}-${String(billMonth + 1).padStart(2, '0')}`
+
+  const run = db.transaction(() => {
+    const result = db.prepare(
+      `INSERT INTO credit_card_expenses
+       (card_id, description, amount, category_id, date, billing_month, notes)
+       VALUES (?,?,?,?,?,?,?)`
+    ).run(card_id, description, amount, category_id ?? null, date, billing_month, notes ?? '')
+
+    //desconta do limite disponível
+    db.prepare('UPDATE credit_cards SET limit_amount = limit_amount - ? WHERE id = ?')
+      .run(amount, card_id)
+
+    return db.prepare('SELECT * FROM credit_card_expenses WHERE id = ?').get(result.lastInsertRowid)
+  })
+  return run()
+})
+
+ipcMain.handle('creditCardExpenses:delete', (_, id) => {
+  const run = db.transaction(() => {
+    const exp = db.prepare('SELECT * FROM credit_card_expenses WHERE id = ?').get(id)
+    if (!exp) throw new Error('Gasto não encontrado')
+
+    //só restaura se ainda não foi pago (fatura não quitada)
+    if (!exp.paid) {
+      db.prepare('UPDATE credit_cards SET limit_amount = limit_amount + ? WHERE id = ?')
+        .run(exp.amount, exp.card_id)
+    }
+
+    db.prepare('DELETE FROM credit_card_expenses WHERE id = ?').run(id)
+    return { success: true }
+  })
+  return run()
+})
+
+ipcMain.handle('creditCardExpenses:payBill', (_, { card_id, billing_month }) => {
+  const run = db.transaction(() => {
+    const card = db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(card_id)
+    if (!card) throw new Error('Cartão não encontrado')
+
+    const expenses = db.prepare(
+      'SELECT * FROM credit_card_expenses WHERE card_id = ? AND billing_month = ? AND paid = 0'
+    ).all(card_id, billing_month)
+    if (!expenses.length) throw new Error('Nenhum gasto pendente nesta fatura')
+
+    const total = expenses.reduce((s, e) => s + e.amount, 0)
+
+    // Gera transaction de expense na conta vinculada
+    const [billYear, billMonthNum] = billing_month.split('-').map(Number)
+    const dueDate = `${billYear}-${String(billMonthNum).padStart(2,'0')}-${String(card.due_day).padStart(2,'0')}`
+
+    db.prepare(
+      `INSERT INTO transactions
+       (description, amount, type, category_id, account_id, date, tags, notes, status, due_date)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`
+    ).run(`Fatura ${card.name} ${billing_month}`, total, 'expense', null, card.account_id,
+          dueDate, '["cartão"]', '', 'done', '')
+
+    // Ajusta saldo da conta
+    if (card.account_id) {
+      db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(total, card.account_id)
+    }
+
+    // Marca gastos como pagos
+    db.prepare(
+      'UPDATE credit_card_expenses SET paid = 1 WHERE card_id = ? AND billing_month = ?'
+    ).run(card_id, billing_month)
+
+    //restaura o limite do cartão após pagamento da fatura
+    db.prepare('UPDATE credit_cards SET limit_amount = limit_amount + ? WHERE id = ?').run(total, card_id)
+
+    return { total, count: expenses.length, dueDate }
+  })
+  return run()
 })
 
 // ── Reports ───────────────────────────────────────────────────
