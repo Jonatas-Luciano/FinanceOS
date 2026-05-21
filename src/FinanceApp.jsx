@@ -119,7 +119,7 @@ export default function FinanceOS() {
   const [selectedBillingMonth, setSelectedBillingMonth] = useState(`${thisYear}-${String(thisMonth + 1).padStart(2, '0')}`)
   const [cardExpenses, setCardExpenses] = useState([])
   const [cardForm, setCardForm] = useState({ name: '', limit_amount: '', closing_day: 10, due_day: 15, account_id: '', color: '#EC4899'})
-  const [cardExpForm, setCardExpForm] = useState({ description: '', amount: '', category_id: '', date: new Date().toISOString().split('T')[0], notes: ''})
+  const [cardExpForm, setCardExpForm] = useState({ description: '', amount: '', category_id: '', date: new Date().toISOString().split('T')[0], notes: '', installments: 1 })
 
   useEffect(() => {
     if (!window.db) return;
@@ -432,16 +432,45 @@ export default function FinanceOS() {
 
   const saveCardExpense = useCallback(async () => {
     if (!cardExpForm.description || !cardExpForm.amount || !selectedCard) return
-    const payload = { ...cardExpForm, card_id: selectedCard.id, amount: parseFloat(cardExpForm.amount), category_id: cardExpForm.category_id ? +cardExpForm.category_id : null }
+    const payload = {
+      ...cardExpForm,
+      card_id: selectedCard.id,
+      amount: parseFloat(cardExpForm.amount),
+      category_id: cardExpForm.category_id ? +cardExpForm.category_id : null,
+      installments: parseInt(cardExpForm.installments) || 1,  // <- adicionar
+    }
     if (window.db) {
       await window.db.creditCardExpenses.create(payload)
       await loadCardExpenses(selectedCard.id, selectedBillingMonth)
-      //recarrega cartões para mostrar limite atualizado
       const cards = await window.db.creditCards.list()
       setCreditCards(cards)
       setSelectedCard(cards.find(c => c.id === selectedCard.id) || null)
     } else {
-      setCardExpenses(prev => [{ ...payload, id: Date.now(), billing_month: selectedBillingMonth, paid: 0 }, ...prev])
+      // Modo demo: gera N objetos locais
+      const totalInstallments = Math.max(1, parseInt(cardExpForm.installments) || 1)
+      const installmentAmount = parseFloat((payload.amount / totalInstallments).toFixed(2))
+      const group = totalInstallments > 1 ? `group_${Date.now()}` : ''
+      const newExps = Array.from({ length: totalInstallments }, (_, i) => {
+        const d = new Date(cardExpForm.date + 'T00:00:00')
+        d.setMonth(d.getMonth() + i)
+        const billing_month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        return {
+          ...payload,
+          id: Date.now() + i,
+          description: totalInstallments > 1
+            ? `${cardExpForm.description} (${i + 1}/${totalInstallments})`
+            : cardExpForm.description,
+          amount: i === totalInstallments - 1
+            ? parseFloat((payload.amount - installmentAmount * (totalInstallments - 1)).toFixed(2))
+            : installmentAmount,
+          billing_month,
+          paid: 0,
+          installments: totalInstallments,
+          installment_num: i + 1,
+          installment_group: group,
+        }
+      })
+      setCardExpenses(prev => [...newExps.filter(e => e.billing_month === selectedBillingMonth), ...prev])
     }
     setShowModal(null)
   }, [cardExpForm, selectedCard, selectedBillingMonth, loadCardExpenses])
@@ -838,8 +867,8 @@ export default function FinanceOS() {
     // CREDIT CARDS
     credit_cards: (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={s.row}>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>Cartões de Crédito</div>
+        <div style={s.row}>          
+          <div style={{ fontSize: 22, fontWeight: 700 }}>Cartões de Crédito<div style={{ fontWeight: 400, fontSize: 10, color: '#6B7280'}}>Necessário recarregar a página após pagar a fatura para atualizar limite disponível</div></div>
           <button style={s.btn('primary')} onClick={openAddCard}>+ Novo cartão</button>
         </div>
 
@@ -857,9 +886,8 @@ export default function FinanceOS() {
                 return (
                   <div key={card.id} onClick={() => { setSelectedCard(card); loadCardExpenses(card.id, selectedBillingMonth) }}
                     style={{ ...s.card, borderTop: `4px solid ${card.color}`, cursor: 'pointer',
-                      outline: selectedCard?.id === card.id ? `2px solid ${card.color}` : 'none' }}>
-                    <div style={s.row}>
-                      <div style={{ fontWeight: 400, fontSize: 10 }}>Necessário recarregar a página após pagar a fatura para atualizar limite disponível</div>
+                      outline: selectedCard?.id === card.id ? `2px solid ${card.color}` : 'none' }}>                    
+                    <div style={s.row}>                      
                       <div style={{ fontWeight: 700, fontSize: 15 }}>{card.name}</div>
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button onClick={e => { e.stopPropagation(); openEditCard(card) }} style={s.iconBtn}>✏️</button>
@@ -904,7 +932,7 @@ export default function FinanceOS() {
                   onChange={e => { setSelectedBillingMonth(e.target.value); loadCardExpenses(selectedCard.id, e.target.value) }}
                   style={{ ...s.input, width: 160 }} />
                 <button style={s.btn('primary')} onClick={() => {
-                  setCardExpForm({ description: '', amount: '', category_id: categories[0]?.id || '', date: new Date().toISOString().split('T')[0], notes: '' })
+                  setCardExpForm({ description: '', amount: '', category_id: categories[0]?.id || '', date: new Date().toISOString().split('T')[0], notes: '', installments: 1 })
                   setShowModal('cardExp')
                 }}>+ Gasto</button>
                 <button style={{ ...s.btn('ghost'), borderColor: '#10B981', color: '#10B981' }} onClick={payBill}>
@@ -947,7 +975,7 @@ export default function FinanceOS() {
                         display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{c?.icon || '💳'}</div>
                       <div style={{ flex: 1 }}>
                         <div style={{ fontSize: 13, fontWeight: 500 }}>{e.description}</div>
-                        <div style={{ fontSize: 11, color: '#6B7280' }}>{fmtDate(e.date)} {c && `· ${c.name}`} {e.paid ? '· ✅ pago' : ''}</div>
+                        <div style={{ fontSize: 11, color: '#6B7280' }}>{fmtDate(e.date)} {c && `· ${c.name}`}{e.installments > 1 && ` · Parcela ${e.installment_num}/${e.installments}`}{e.paid ? ' · ✅ pago' : ''}</div>
                       </div>
                       <div style={{ fontWeight: 700, color: '#EF4444' }}>{fmt(e.amount)}</div>
                       {!e.paid && (
@@ -1633,6 +1661,15 @@ export default function FinanceOS() {
               <div style={{ ...s.label, marginBottom: 4 }}>Valor (R$) *</div>
               <input style={s.input} type='number' value={cardExpForm.amount}
                 onChange={e => setCardExpForm(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Parcelas</div>
+              <select style={s.select} value={cardExpForm.installments}
+                onChange={e => setCardExpForm(f => ({ ...f, installments: +e.target.value }))}>
+                {Array.from({ length: 24 }, (_, i) => i + 1).map(n => (
+                  <option key={n} value={n}>{n === 1 ? 'À vista' : `${n}x de ${cardExpForm.amount ? `R$ ${(parseFloat(cardExpForm.amount) / n).toFixed(2)}` : '--'}`}</option>
+                ))}
+              </select>
             </div>
             <div style={s.fr}>
               <div style={{ ...s.label, marginBottom: 4 }}>Data</div>
