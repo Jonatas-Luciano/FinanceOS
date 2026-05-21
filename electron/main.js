@@ -13,11 +13,6 @@ const dbPath = path.join(app.getPath('userData'), 'financeos.db')
 let db
 
 function initDatabase() {
-  // Migração segura — ignora se coluna já existir
-  try { db.exec('ALTER TABLE credit_cards ADD COLUMN limit_total REAL NOT NULL DEFAULT 0') } catch {}
-  // Retroativamente define limit_total = limit_amount para cartões existentes onde limit_total = 0
-  db.exec('UPDATE credit_cards SET limit_total = limit_amount WHERE limit_total = 0')
-  
   db = new Database(dbPath)
 
   // Performance: WAL mode para escrita concorrente mais rápida
