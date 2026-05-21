@@ -140,18 +140,15 @@ function seedIfEmpty() {
 
   // Accounts
   insertAccount.run('Conta Corrente', 'checking',  'Nubank',  4850.00,  '#8B5CF6')
-  insertAccount.run('Poupança',       'savings',   'Itaú',    12300.00, '#10B981')
-  insertAccount.run('Carteira',       'wallet',    'Dinheiro', 350.00,  '#F59E0B')
-  insertAccount.run('Investimentos',  'investment','XP',      45200.00, '#3B82F6')
 
   // Categories — expense
-  insertCategory.run('Alimentação', '🍽️', 'expense', '#EF4444', 1200)
-  insertCategory.run('Transporte',  '🚗', 'expense', '#F59E0B',  500)
-  insertCategory.run('Moradia',     '🏠', 'expense', '#8B5CF6', 2000)
-  insertCategory.run('Saúde',       '💊', 'expense', '#10B981',  400)
-  insertCategory.run('Lazer',       '🎮', 'expense', '#3B82F6',  600)
-  insertCategory.run('Educação',    '📚', 'expense', '#06B6D4',  300)
-  insertCategory.run('Vestuário',   '👔', 'expense', '#EC4899',  250)
+  insertCategory.run('Alimentação', '🍽️', 'expense', '#EF4444',  0)
+  insertCategory.run('Transporte',  '🚗', 'expense', '#F59E0B',  0)
+  insertCategory.run('Moradia',     '🏠', 'expense', '#8B5CF6',  0)
+  insertCategory.run('Saúde',       '💊', 'expense', '#10B981',  0)
+  insertCategory.run('Lazer',       '🎮', 'expense', '#3B82F6',  0)
+  insertCategory.run('Educação',    '📚', 'expense', '#06B6D4',  0)
+  insertCategory.run('Vestuário',   '👔', 'expense', '#EC4899',  0)
   // Categories — income
   insertCategory.run('Salário',     '💼', 'income',  '#10B981',  0)
   insertCategory.run('Freelance',   '💻', 'income',  '#3B82F6',  0)
@@ -159,33 +156,13 @@ function seedIfEmpty() {
 
   // Transactions (mês atual)
   const d = (day) => `${y}-${m}-${String(day).padStart(2,'0')}`
-  insertTx.run('Salário',          7500,   'income',  8, 1, d(5),  '["fixo"]',          '', 'done', '')
-  insertTx.run('Supermercado',     485.30, 'expense', 1, 1, d(7),  '["mercado"]',       'Compra semanal', 'done', '')
-  insertTx.run('Uber',             34.50,  'expense', 2, 1, d(8),  '[]',                '', 'done', '')
-  insertTx.run('Aluguel',          1800,   'expense', 3, 1, d(10), '["fixo","moradia"]','', 'done', '')
-  insertTx.run('Restaurante Sushi',120,    'expense', 1, 3, d(12), '["restaurante"]',   'Aniversário', 'done', '')
-  insertTx.run('Freelance Design', 1200,   'income',  9, 1, d(14), '["extra"]',         'Projeto logo marca', 'done', '')
-  insertTx.run('Academia',         89.90,  'expense', 4, 1, d(1),  '["fixo"]',          '', 'done', '')
-  insertTx.run('Netflix',          39.90,  'expense', 5, 1, d(3),  '["assinatura"]',    '', 'done', '')
-  insertTx.run('Curso Udemy',      74.90,  'expense', 6, 1, d(16), '[]',                'React avançado', 'done', '')
-  insertTx.run('Posto Gasolina',   180,    'expense', 2, 3, d(18), '[]',                '', 'done', '')
-  insertTx.run('Farmácia',         67.40,  'expense', 4, 1, d(9),  '[]',                '', 'done', '')
-  insertTx.run('Dividendos XP',    320,    'income', 10, 4, d(15), '["passivo"]',       '', 'done', '')
-  insertTx.run('Camisa polo',      159.90, 'expense', 7, 1, d(20), '[]',                '', 'done', '')
-  insertTx.run('iFood',            55.80,  'expense', 1, 1, d(22), '[]',                '', 'done', '')
+  insertTx.run('Salário',          2500,   'income',  8, 1, d(5),  '["fixo"]',          '', 'done', '')
 
   // Investments
   insertInv.run('Tesouro Selic 2027',      'tesouro_direto', 10000, 10850, 11.65, '% a.a.',  '2023-03-01', '2027-03-01')
-  insertInv.run('CDB Itaú 110% CDI',       'cdb',            15000, 16420, 110,   '% CDI',   '2023-06-15', '2025-06-15')
-  insertInv.run('Fundo Imobiliário MXRF11','fii',             8200,  9130,  0.92,  '% a.m.',  '2022-11-01', null)
-  insertInv.run('Ações PETR4',             'acoes',           6000,  7200,  0,     'variável', '2023-01-10', null)
-  insertInv.run('LCI BB 98% CDI',          'lci',             6000,  6600,  98,    '% CDI',   '2024-01-01', '2025-12-31')
 
   // Goals
   insertGoal.run('Reserva de Emergência', 30000, 18400, '2025-12-31', '🛡️', '#10B981')
-  insertGoal.run('Viagem Europa',         15000,  4200, '2026-07-01', '✈️', '#3B82F6')
-  insertGoal.run('Notebook novo',          8000,  3500, '2025-09-01', '💻', '#8B5CF6')
-  insertGoal.run('Entrada apartamento',   80000, 22000, '2028-01-01', '🏠', '#F59E0B')
 
   db.prepare("INSERT INTO _meta (key, value) VALUES ('seeded', '1')").run()
 }
