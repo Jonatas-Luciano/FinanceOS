@@ -123,7 +123,13 @@ function initDatabase() {
       key   TEXT PRIMARY KEY,
       value TEXT
     );
+
   `)
+
+  try {
+    db.prepare("ALTER TABLE transactions ADD COLUMN external_id TEXT NOT NULL DEFAULT ''").run()
+    db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_external_id ON transactions(external_id) WHERE external_id != ''").run()
+  } catch (_) { /* coluna já existe — ignora */ }
 
   seedIfEmpty()
 }
@@ -346,6 +352,62 @@ ipcMain.handle('transactions:confirm', (_, id) => {
     const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id)
     return { ...row, tags: JSON.parse(row.tags || '[]') }
   })
+  return run()
+})
+
+ipcMain.handle('transactions:createBatch', (_, transactions) => {
+  const run = db.transaction(() => {
+    const saved = []
+
+    for (const tx of transactions) {
+      const {
+        description,
+        amount,
+        type,
+        category_id = null,
+        account_id  = null,
+        date,
+        tags        = [],
+        notes       = '',
+        status      = 'done',
+        due_date    = '',
+        external_id = '',  // FITID do OFX ou hash gerado pelo CSV
+      } = tx
+
+      const tagsJson = JSON.stringify(Array.isArray(tags) ? tags : [])
+
+      const result = db.prepare(
+        `INSERT OR IGNORE INTO transactions
+        (description, amount, type, category_id, account_id,
+          date, tags, notes, status, due_date, external_id)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+      ).run(
+        description, amount, type, category_id, account_id,
+        date, tagsJson, notes, status, due_date,
+        external_id || ''
+      )
+
+      // Ajuste de saldo (apenas transações efetivadas)
+      if (status === 'done' && account_id) {
+        if (type === 'income') {
+          db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?')
+            .run(amount, account_id)
+        } else if (type === 'expense') {
+          db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?')
+            .run(amount, account_id)
+        }
+      }
+
+      const row = db.prepare(
+        'SELECT * FROM transactions WHERE id = ?'
+      ).get(result.lastInsertRowid)
+
+      saved.push({ ...row, tags: JSON.parse(row.tags || '[]') })
+    }
+
+    return saved
+  })
+
   return run()
 })
 
