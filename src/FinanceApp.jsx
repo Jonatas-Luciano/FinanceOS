@@ -859,6 +859,7 @@ export default function FinanceOS() {
                     style={{ ...s.card, borderTop: `4px solid ${card.color}`, cursor: 'pointer',
                       outline: selectedCard?.id === card.id ? `2px solid ${card.color}` : 'none' }}>
                     <div style={s.row}>
+                      <div style={{ fontWeight: 400, fontSize: 10 }}>Necessário recarregar a página após pagar a fatura para atualizar limite disponível</div>
                       <div style={{ fontWeight: 700, fontSize: 15 }}>{card.name}</div>
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button onClick={e => { e.stopPropagation(); openEditCard(card) }} style={s.iconBtn}>✏️</button>
