@@ -433,10 +433,16 @@ export default function FinanceOS() {
   const saveCardExpense = useCallback(async () => {
     if (!cardExpForm.description || !cardExpForm.amount || !selectedCard) return
     const payload = { ...cardExpForm, card_id: selectedCard.id, amount: parseFloat(cardExpForm.amount), category_id: cardExpForm.category_id ? +cardExpForm.category_id : null }
-    const saved = window.db ? await window.db.creditCardExpenses.create(payload) : { ...payload, id: Date.now(), billing_month: selectedBillingMonth, paid: 0 }
-    // Recarrega para pegar o billing_month calculado pelo backend
-    if (window.db) await loadCardExpenses(selectedCard.id, selectedBillingMonth)
-    else setCardExpenses(prev => [saved, ...prev])
+    if (window.db) {
+      await window.db.creditCardExpenses.create(payload)
+      await loadCardExpenses(selectedCard.id, selectedBillingMonth)
+      //recarrega cartões para mostrar limite atualizado
+      const cards = await window.db.creditCards.list()
+      setCreditCards(cards)
+      setSelectedCard(cards.find(c => c.id === selectedCard.id) || null)
+    } else {
+      setCardExpenses(prev => [{ ...payload, id: Date.now(), billing_month: selectedBillingMonth, paid: 0 }, ...prev])
+    }
     setShowModal(null)
   }, [cardExpForm, selectedCard, selectedBillingMonth, loadCardExpenses])
 
@@ -850,8 +856,12 @@ export default function FinanceOS() {
                     </div>
                     {a && <div style={{ fontSize: 12, color: '#6B7280' }}>Débito: {a.name}</div>}
                     <div style={{ marginTop: 10 }}>
-                      <div style={s.label}>Limite</div>
+                      <div style={s.label}>Limite disponível</div>
                       <div style={{ fontWeight: 700, color: card.color }}>{fmt(card.limit_amount)}</div>
+                    </div>
+                    <div style={{ marginTop: 10 }}>
+                      <div style={s.label}>Limite total</div>
+                      <div style={{ fontWeight: 700, color: card.color }}>{fmt(card.limit_total)}</div>
                     </div>
                   </div>
                 )

@@ -575,33 +575,51 @@ ipcMain.handle('creditCardExpenses:list', (_, { card_id, billing_month }) => {
 })
 
 ipcMain.handle('creditCardExpenses:create', (_, { card_id, description, amount, category_id, date, notes }) => {
-  // Calcula billing_month automaticamente
   const card = db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(card_id)
   if (!card) throw new Error('Cartão não encontrado')
 
   const d = new Date(date + 'T00:00:00')
   const day = d.getDate()
   let billYear = d.getFullYear()
-  let billMonth = d.getMonth() // 0-based
+  let billMonth = d.getMonth()
 
-  // Se o dia da compra >= closing_day, cai na fatura do mês seguinte
   if (day >= card.closing_day) {
     billMonth += 1
     if (billMonth > 11) { billMonth = 0; billYear += 1 }
   }
   const billing_month = `${billYear}-${String(billMonth + 1).padStart(2, '0')}`
 
-  const result = db.prepare(
-    `INSERT INTO credit_card_expenses
-     (card_id, description, amount, category_id, date, billing_month, notes)
-     VALUES (?,?,?,?,?,?,?)`
-  ).run(card_id, description, amount, category_id ?? null, date, billing_month, notes ?? '')
-  return db.prepare('SELECT * FROM credit_card_expenses WHERE id = ?').get(result.lastInsertRowid)
+  const run = db.transaction(() => {
+    const result = db.prepare(
+      `INSERT INTO credit_card_expenses
+       (card_id, description, amount, category_id, date, billing_month, notes)
+       VALUES (?,?,?,?,?,?,?)`
+    ).run(card_id, description, amount, category_id ?? null, date, billing_month, notes ?? '')
+
+    //desconta do limite disponível
+    db.prepare('UPDATE credit_cards SET limit_amount = limit_amount - ? WHERE id = ?')
+      .run(amount, card_id)
+
+    return db.prepare('SELECT * FROM credit_card_expenses WHERE id = ?').get(result.lastInsertRowid)
+  })
+  return run()
 })
 
 ipcMain.handle('creditCardExpenses:delete', (_, id) => {
-  db.prepare('DELETE FROM credit_card_expenses WHERE id = ?').run(id)
-  return { success: true }
+  const run = db.transaction(() => {
+    const exp = db.prepare('SELECT * FROM credit_card_expenses WHERE id = ?').get(id)
+    if (!exp) throw new Error('Gasto não encontrado')
+
+    //só restaura se ainda não foi pago (fatura não quitada)
+    if (!exp.paid) {
+      db.prepare('UPDATE credit_cards SET limit_amount = limit_amount + ? WHERE id = ?')
+        .run(exp.amount, exp.card_id)
+    }
+
+    db.prepare('DELETE FROM credit_card_expenses WHERE id = ?').run(id)
+    return { success: true }
+  })
+  return run()
 })
 
 ipcMain.handle('creditCardExpenses:payBill', (_, { card_id, billing_month }) => {
@@ -636,6 +654,9 @@ ipcMain.handle('creditCardExpenses:payBill', (_, { card_id, billing_month }) => 
     db.prepare(
       'UPDATE credit_card_expenses SET paid = 1 WHERE card_id = ? AND billing_month = ?'
     ).run(card_id, billing_month)
+
+    //restaura o limite do cartão após pagamento da fatura
+    db.prepare('UPDATE credit_cards SET limit_amount = limit_amount + ? WHERE id = ?').run(total, card_id)
 
     return { total, count: expenses.length, dueDate }
   })
