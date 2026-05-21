@@ -87,7 +87,8 @@ function initDatabase() {
       day_of_month INTEGER NOT NULL DEFAULT 1,
       active      INTEGER NOT NULL DEFAULT 1,
       tags        TEXT    NOT NULL DEFAULT '[]',
-      notes       TEXT    NOT NULL DEFAULT ''
+      notes       TEXT    NOT NULL DEFAULT '',
+      created_at  TEXT    NOT NULL DEFAULT (date('now'))
     );
 
     CREATE TABLE IF NOT EXISTS credit_cards (
@@ -452,12 +453,13 @@ ipcMain.handle('recurring:list', () => {
 ipcMain.handle('recurring:create', (_, data) => {
   const { description, amount, type, category_id, account_id,
           day_of_month = 1, tags = [], notes = '' } = data
+  const created_at = new Date().toISOString().split('T')[0] // YYYY-MM-DD
   const result = db.prepare(
     `INSERT INTO recurring
-     (description, amount, type, category_id, account_id, day_of_month, tags, notes)
-     VALUES (?,?,?,?,?,?,?,?)`
+     (description, amount, type, category_id, account_id, day_of_month, tags, notes, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`
   ).run(description, amount, type, category_id, account_id, day_of_month,
-        JSON.stringify(tags), notes)
+        JSON.stringify(tags), notes, created_at)
   const row = db.prepare('SELECT * FROM recurring WHERE id = ?').get(result.lastInsertRowid)
   return { ...row, tags: JSON.parse(row.tags || '[]') }
 })
@@ -479,11 +481,27 @@ ipcMain.handle('recurring:delete', (_, id) => {
 ipcMain.handle('recurring:generateForMonth', (_, { month, year }) => {
   const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
   const today = new Date()
+  const todayStr = today.toISOString().split('T')[0]
+
+  // Regra 1: nunca gerar para meses anteriores ao mês atual
+  const targetDate = new Date(year, month, 1)
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
+  if (targetDate < currentMonthStart) return []
+
   const rows = db.prepare('SELECT * FROM recurring WHERE active = 1').all()
   const created = []
 
   const run = db.transaction(() => {
     for (const r of rows) {
+      // Regra 1: não gerar para meses anteriores à criação do recorrente
+      const recCreatedAt = r.created_at || '1970-01-01'
+      const recCreatedMonth = recCreatedAt.substring(0, 7) // 'YYYY-MM'
+      if (prefix < recCreatedMonth) continue
+
+      // Regra 2: dentro do mês atual, só gerar se today >= day_of_month
+      const isCurrentMonth = (year === today.getFullYear() && month === today.getMonth())
+      if (isCurrentMonth && today.getDate() < r.day_of_month) continue
+
       const dayStr = String(r.day_of_month).padStart(2, '0')
       const dateStr = `${prefix}-${dayStr}`
 
@@ -494,9 +512,8 @@ ipcMain.handle('recurring:generateForMonth', (_, { month, year }) => {
       ).get(r.description, r.amount, r.type, prefix)
       if (exists) continue
 
-      // Se a data de vencimento já chegou → efetiva e ajusta saldo
-      const dueDate = new Date(`${dateStr}T00:00:00`)
-      const isDue = dueDate <= today
+      // Se a data já passou → efetiva; senão → pendente
+      const isDue = dateStr <= todayStr
       const status = isDue ? 'done' : 'pending'
 
       const result = db.prepare(
