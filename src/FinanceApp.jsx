@@ -136,23 +136,23 @@ export default function FinanceOS() {
   loadInitialReport();
 }, [dbReady]); // só na montagem
   
-  useEffect(() => {
-    if (!window.db) return;
+useEffect(() => {
+  if (!window.db) return;
     let cancelled = false;
     async function loadAll() {
       try {
-        const [accs, cats, txs, invs, gls, recs, cards] = await Promise.all([
+        const [accs, cats, invs, gls, recs, cards] = await Promise.all([
           window.db.accounts.list(),
           window.db.categories.list(),
-          window.db.transactions.list({ month: filterMonth, year: filterYear }),
           window.db.investments.list(),
           window.db.goals.list(),
           window.db.recurring.list(),
           window.db.creditCards.list(),
         ]);
         if (cancelled) return;
-        setAccounts(accs); setCategories(cats); setTransactions(txs);
-        setInvestments(invs); setGoals(gls); setRecurring(recs); setCreditCards(cards); setDbReady(true);
+        setAccounts(accs); setCategories(cats);
+        setInvestments(invs); setGoals(gls); setRecurring(recs); setCreditCards(cards);
+        setDbReady(true);
       } catch (err) { if (!cancelled) setDbError(err.message); }
     }
     loadAll();

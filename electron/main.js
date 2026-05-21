@@ -250,7 +250,7 @@ ipcMain.handle('transactions:list', (_, { month, year } = {}) => {
 
 ipcMain.handle('transactions:create', (_, tx) => {
   const { description, amount, type, category_id, account_id,
-          date, tags, notes, status = 'done', due_date = '' } = tx
+        to_account_id = null, date, tags, notes, status = 'done', due_date = '' } = tx
   const tagsJson = JSON.stringify(Array.isArray(tags) ? tags : [])
 
   const run = db.transaction(() => {
@@ -294,10 +294,12 @@ ipcMain.handle('transactions:update', (_, { id, ...data }) => {
     if (!old) throw new Error('Transação não encontrada')
 
     // Reverte efeito da transação antiga no saldo
-    if (old.type === 'income') {
-      db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(old.amount, old.account_id)
-    } else if (old.type === 'expense') {
-      db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(old.amount, old.account_id)
+    if (old.status === 'done') {
+      if (old.type === 'income') {
+        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(old.amount, old.account_id)
+      } else if (old.type === 'expense') {
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(old.amount, old.account_id)
+      }
     }
 
     // Aplica dados novos
@@ -309,10 +311,12 @@ ipcMain.handle('transactions:update', (_, { id, ...data }) => {
 
     // Aplica efeito da nova transação no saldo
     const updated = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id)
-    if (updated.type === 'income') {
-      db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(updated.amount, updated.account_id)
-    } else if (updated.type === 'expense') {
-      db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(updated.amount, updated.account_id)
+    if (updated.status === 'done') {
+      if (updated.type === 'income') {
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(updated.amount, updated.account_id)
+      } else if (updated.type === 'expense') {
+        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(updated.amount, updated.account_id)
+      }
     }
 
     return { ...updated, tags: JSON.parse(updated.tags || '[]') }
@@ -326,11 +330,13 @@ ipcMain.handle('transactions:delete', (_, id) => {
     const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id)
     if (!tx) throw new Error('Transação não encontrada')
 
-    // Reverte saldo
-    if (tx.type === 'income') {
-      db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(tx.amount, tx.account_id)
-    } else if (tx.type === 'expense') {
-      db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(tx.amount, tx.account_id)
+    // Reverte saldo apenas se a transação estava efetivada
+    if (tx.status === 'done') {
+      if (tx.type === 'income') {
+        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(tx.amount, tx.account_id)
+      } else if (tx.type === 'expense') {
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(tx.amount, tx.account_id)
+      }
     }
 
     db.prepare('DELETE FROM transactions WHERE id = ?').run(id)
