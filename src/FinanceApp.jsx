@@ -121,7 +121,20 @@ export default function FinanceOS() {
   const [cardForm, setCardForm] = useState({ name: '', limit_amount: '', closing_day: 10, due_day: 15, account_id: '', color: '#EC4899'})
   const [cardExpForm, setCardExpForm] = useState({ description: '', amount: '', category_id: '', date: new Date().toISOString().split('T')[0], notes: '', installments: 1 })
   const [showGuide, setShowGuide] = useState(false)
+  const [dashFrom, setDashFrom] = useState(new Date(thisYear, thisMonth, 1).toISOString().split('T')[0])
+  const [dashTo, setDashTo] = useState(new Date().toISOString().split('T')[0])
 
+  useEffect(() => {
+  if (!window.db || !dbReady) return;
+  const loadInitialReport = async () => {
+    try {
+      const data = await window.db.reports.byRange({ from: reportFrom, to: reportTo });
+      setReportData(data);
+    } catch (err) { console.error(err); }
+  };
+  loadInitialReport();
+}, [dbReady]); // só na montagem
+  
   useEffect(() => {
     if (!window.db) return;
     let cancelled = false;
@@ -177,6 +190,18 @@ export default function FinanceOS() {
       return { ...c, total, pct: c.budget ? (total / c.budget) * 100 : 0 };
     }).filter(Boolean).sort((a, b) => b.total - a.total);
   }, [monthTx, categories]);
+
+  const dashTx = useMemo(() => {
+    const from = new Date(dashFrom + "T00:00:00");
+    const to = new Date(dashTo + "T23:59:59");
+    return transactions.filter(t => {
+      const d = new Date(t.date + "T00:00:00");
+      return d >= from && d <= to;
+    });
+  }, [transactions, dashFrom, dashTo]);
+
+  const dashIncome  = useMemo(() => dashTx.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0), [dashTx]);
+  const dashExpense = useMemo(() => dashTx.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0), [dashTx]);
 
   const monthlyTrend = useMemo(() => Array.from({ length: 6 }, (_, i) => {
     const d = new Date(thisYear, thisMonth - 5 + i, 1);
@@ -542,7 +567,6 @@ export default function FinanceOS() {
     { id: "recurring", label: "Fixos / Recorrentes", icon: "🔄" },
     { id: "investments",  label: "Investimentos", icon: "📈" },
     { id: "goals",        label: "Metas",         icon: "🎯" },
-    { id: "reports",      label: "Relatórios",    icon: "◫" },
     { id: "calendar",     label: "Calendário",    icon: "▦" },
   ];
 
@@ -570,7 +594,11 @@ export default function FinanceOS() {
             <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px" }}>Visão Geral</div>
             <div style={{ color: "#6B7280", fontSize: 13, marginTop: 2 }}>{monthNames[filterMonth]} {filterYear}</div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <div style={s.label}>De</div>
+            <input style={{ ...s.input, width: 140 }} type="date" value={dashFrom} onChange={e => setDashFrom(e.target.value)} />
+            <div style={s.label}>Até</div>
+            <input style={{ ...s.input, width: 140 }} type="date" value={dashTo} onChange={e => setDashTo(e.target.value)} />
             <select style={{ ...s.select, width: "auto" }} value={filterMonth} onChange={e => setFilterMonth(+e.target.value)}>
               {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
             </select>
@@ -584,8 +612,8 @@ export default function FinanceOS() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16 }}>
           {[
             { label: "Saldo Total", value: fmt(totalBalance), color: "#8B5CF6", icon: "💳" },
-            { label: "Receitas do Mês", value: fmt(totalIncome), color: "#10B981", icon: "⬆" },
-            { label: "Despesas do Mês", value: fmt(totalExpense), color: "#EF4444", icon: "⬇" },
+            { label: "Receitas do Período", value: fmt(dashIncome), color: "#10B981", icon: "⬆" },
+            { label: "Despesas do Período", value: fmt(dashExpense), color: "#EF4444", icon: "⬇" },,
             { label: "Patrimônio Total", value: fmtCompact(netWorth), color: "#F59E0B", icon: "🏦" },
           ].map((kpi, i) => (
             <div key={i} style={{ ...s.cardSm, borderTop: `3px solid ${kpi.color}` }}>
@@ -678,6 +706,68 @@ export default function FinanceOS() {
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 13, color: t.type === "income" ? "#10B981" : "#EF4444", flexShrink: 0 }}>
                         {t.type === "income" ? "+" : "-"}{fmt(t.amount)}
+                      </div>
+                    </div>
+                  );
+                })
+            }
+          </div>
+        </div>
+
+        {/* Composição do Patrimônio + Carteira */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 16 }}>
+          <div style={s.card}>
+            <div style={s.sectionTitle}>Composição do Patrimônio</div>
+            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+              <DonutChart segments={[
+                { value: Math.max(0, totalBalance), color: "#8B5CF6" },
+                { value: Math.max(0, totalInvested), color: "#3B82F6" }
+              ]} size={110} />
+              <div>
+                {[
+                  { label: "Contas/Carteiras", value: totalBalance, color: "#8B5CF6" },
+                  { label: "Investimentos", value: totalInvested, color: "#3B82F6" }
+                ].map((item, i) => (
+                  <div key={i} style={{ marginBottom: 12 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={s.pill(item.color)} />
+                      <span style={{ fontSize: 12, color: "#6B7280" }}>{item.label}</span>
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: 16, color: item.color, marginTop: 2 }}>{fmt(item.value)}</div>
+                  </div>
+                ))}
+                <div style={s.sep} />
+                <div style={{ fontSize: 11, color: "#6B7280" }}>Patrimônio total</div>
+                <div style={{ fontWeight: 700, fontSize: 18, marginTop: 2 }}>{fmt(netWorth)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div style={s.card}>
+            <div style={{ ...s.row, marginBottom: 16 }}>
+              <div style={s.sectionTitle}>Carteira de Investimentos</div>
+              <button style={s.btn("ghost")} onClick={() => setPage("investments")}>Ver todas →</button>
+            </div>
+            {investments.length === 0
+              ? <div style={{ color: "#6B7280", fontSize: 13 }}>Nenhum investimento cadastrado.</div>
+              : investments.slice(0, 4).map((inv, idx) => {
+                  const gain = inv.current - inv.invested;
+                  const pct = inv.invested ? ((inv.current / inv.invested) - 1) * 100 : 0;
+                  const color = invColors[inv.type] || "#6B7280";
+                  return (
+                    <div key={inv.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0", borderBottom: idx < Math.min(investments.length, 4) - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 500, fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{inv.name}</div>
+                        <div style={{ display: "flex", gap: 6, marginTop: 3 }}>
+                          <span style={s.badge(color)}>{invLabels[inv.type] || inv.type}</span>
+                          {inv.rate > 0 && <span style={{ fontSize: 11, color: "#6B7280" }}>{inv.rate} {inv.rate_type}</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{fmt(inv.current)}</div>
+                        <div style={{ fontSize: 11, color: gain >= 0 ? "#10B981" : "#EF4444", fontWeight: 600 }}>
+                          {gain >= 0 ? "+" : ""}{fmtPct(pct)}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1391,39 +1481,51 @@ export default function FinanceOS() {
               </div>
             </div>
           </div>
-          {expByCategory.length > 0 && (
-            <div style={{ ...s.card, gridColumn: "1 / -1" }}>
-              <div style={s.sectionTitle}>Análise de Despesas — {monthNames[filterMonth]}</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    {["Categoria","Gasto","Orçamento","Saldo","% uso"].map(h => (
-                      <th key={h} style={{ textAlign: "left", padding: "6px 8px", color: "#6B7280", fontWeight: 600, fontSize: 11 }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {expByCategory.map(c => {
-                    const saldo = (c.budget || 0) - c.total;
-                    return (
-                      <tr key={c.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                        <td style={{ padding: "10px 8px" }}><span style={{ marginRight: 8 }}>{c.icon}</span>{c.name}</td>
-                        <td style={{ padding: "10px 8px", fontWeight: 600, color: "#EF4444" }}>{fmt(c.total)}</td>
-                        <td style={{ padding: "10px 8px", color: "#6B7280" }}>{fmt(c.budget || 0)}</td>
-                        <td style={{ padding: "10px 8px", color: saldo >= 0 ? "#10B981" : "#EF4444", fontWeight: 600 }}>{fmt(saldo)}</td>
-                        <td style={{ padding: "10px 8px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <MiniBar pct={c.pct} color={c.color} />
-                            <span style={{ fontSize: 11, minWidth: 36 }}>{fmtPct(c.pct)}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {(() => {
+            const analysisData = reportData?.byCategory?.length
+              ? reportData.byCategory
+              : expByCategory;
+            const periodLabel = reportData
+              ? `${reportFrom} a ${reportTo}`
+              : `${monthNames[filterMonth]} ${filterYear}`;
+            return analysisData.length > 0 ? (
+              <div style={{ ...s.card, gridColumn: "1 / -1" }}>
+                <div style={s.sectionTitle}>Análise de Despesas — {periodLabel}</div>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                      {["Categoria","Gasto","Orçamento","Saldo","% uso"].map(h => (
+                        <th key={h} style={{ textAlign: "left", padding: "6px 8px", color: "#6B7280", fontWeight: 600, fontSize: 11 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analysisData.map(c => {
+                      const catFull = categories.find(x => x.id === c.id) || c;
+                      const total = c.total;
+                      const budget = catFull.budget || 0;
+                      const saldo = budget - total;
+                      const pct = budget ? (total / budget) * 100 : 0;
+                      return (
+                        <tr key={c.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                          <td style={{ padding: "10px 8px" }}><span style={{ marginRight: 8 }}>{catFull.icon}</span>{catFull.name}</td>
+                          <td style={{ padding: "10px 8px", fontWeight: 600, color: "#EF4444" }}>{fmt(total)}</td>
+                          <td style={{ padding: "10px 8px", color: "#6B7280" }}>{fmt(budget)}</td>
+                          <td style={{ padding: "10px 8px", color: saldo >= 0 ? "#10B981" : "#EF4444", fontWeight: 600 }}>{fmt(saldo)}</td>
+                          <td style={{ padding: "10px 8px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <MiniBar pct={pct} color={catFull.color} />
+                              <span style={{ fontSize: 11, minWidth: 36 }}>{fmtPct(pct)}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null;
+          })()}
         </div>
       </div>
     ),
