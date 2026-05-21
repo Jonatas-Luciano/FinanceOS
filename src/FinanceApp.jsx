@@ -449,13 +449,22 @@ export default function FinanceOS() {
   const payBill = useCallback(async () => {
     if (!selectedCard || !window.db) return
     try {
-      const result = await window.db.creditCardExpenses.payBill({ card_id: selectedCard.id, billing_month: selectedBillingMonth })
+      const result = await window.db.creditCardExpenses.payBill({
+        card_id: selectedCard.id,
+        billing_month: selectedBillingMonth
+      })
       alert(`Fatura paga! Total: ${fmt(result.total)} — vencimento ${fmtDate(result.dueDate)}`)
+      
+      // Recarrega tudo que pode ter mudado
       await loadCardExpenses(selectedCard.id, selectedBillingMonth)
-      const accs = await window.db.accounts.list()
+      const [accs, txs] = await Promise.all([
+        window.db.accounts.list(),
+        window.db.transactions.list({ month: filterMonth, year: filterYear })
+      ])
       setAccounts(accs)
+      setTransactions(txs)
     } catch (err) { alert('Erro: ' + err.message) }
-  }, [selectedCard, selectedBillingMonth, loadCardExpenses])
+  }, [selectedCard, selectedBillingMonth, loadCardExpenses, filterMonth, filterYear])
 
 // ── Styles ────────────────────────────────────────────────
   const s = {
