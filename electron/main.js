@@ -13,6 +13,11 @@ const dbPath = path.join(app.getPath('userData'), 'financeos.db')
 let db
 
 function initDatabase() {
+  // Migração segura — ignora se coluna já existir
+  try { db.exec('ALTER TABLE credit_cards ADD COLUMN limit_total REAL NOT NULL DEFAULT 0') } catch {}
+  // Retroativamente define limit_total = limit_amount para cartões existentes onde limit_total = 0
+  db.exec('UPDATE credit_cards SET limit_total = limit_amount WHERE limit_total = 0')
+  
   db = new Database(dbPath)
 
   // Performance: WAL mode para escrita concorrente mais rápida
@@ -93,7 +98,8 @@ function initDatabase() {
     CREATE TABLE IF NOT EXISTS credit_cards (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
       name         TEXT    NOT NULL,
-      limit_amount REAL    NOT NULL DEFAULT 0,
+      limit_amount REAL    NOT NULL DEFAULT 0,   -- limite disponível (decrementado/restaurado)
+      limit_total  REAL    NOT NULL DEFAULT 0,   -- limite original (só para exibição)
       closing_day  INTEGER NOT NULL DEFAULT 1,
       due_day      INTEGER NOT NULL DEFAULT 10,
       account_id   INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
@@ -551,12 +557,16 @@ ipcMain.handle('creditCards:list', () => {
 
 ipcMain.handle('creditCards:create', (_, { name, limit_amount, closing_day, due_day, account_id, color }) => {
   const result = db.prepare(
-    'INSERT INTO credit_cards (name, limit_amount, closing_day, due_day, account_id, color) VALUES (?,?,?,?,?,?)'
-  ).run(name, limit_amount ?? 0, closing_day ?? 1, due_day ?? 10, account_id ?? null, color ?? '#EC4899')
+    'INSERT INTO credit_cards (name, limit_amount, limit_total, closing_day, due_day, account_id, color) VALUES (?,?,?,?,?,?,?)'
+  ).run(name, limit_amount ?? 0, limit_amount ?? 0, closing_day ?? 1, due_day ?? 10, account_id ?? null, color ?? '#EC4899')
   return db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(result.lastInsertRowid)
 })
 
 ipcMain.handle('creditCards:update', (_, { id, ...data }) => {
+  // Se o usuário editar o limite, atualiza também o limit_total
+  if (data.limit_amount !== undefined) {
+    data.limit_total = data.limit_amount
+  }
   const fields = Object.keys(data).map(k => `${k} = ?`).join(', ')
   db.prepare(`UPDATE credit_cards SET ${fields} WHERE id = ?`).run(...Object.values(data), id)
   return db.prepare('SELECT * FROM credit_cards WHERE id = ?').get(id)

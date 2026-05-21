@@ -856,12 +856,20 @@ export default function FinanceOS() {
                     </div>
                     {a && <div style={{ fontSize: 12, color: '#6B7280' }}>Débito: {a.name}</div>}
                     <div style={{ marginTop: 10 }}>
-                      <div style={s.label}>Limite disponível</div>
-                      <div style={{ fontWeight: 700, color: card.color }}>{fmt(card.limit_amount)}</div>
-                    </div>
-                    <div style={{ marginTop: 10 }}>
-                      <div style={s.label}>Limite total</div>
-                      <div style={{ fontWeight: 700, color: card.color }}>{fmt(card.limit_total)}</div>
+                      <div style={s.label}>Limite disponível / total</div>
+                      <div style={{ fontWeight: 700, color: card.color }}>
+                        {fmt(card.limit_amount)}
+                        <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
+                          {' '}/ {fmt(card.limit_total || card.limit_amount)}
+                        </span>
+                      </div>
+                      <MiniBar
+                        pct={card.limit_total ? ((card.limit_total - card.limit_amount) / card.limit_total) * 100 : 0}
+                        color={card.color}
+                      />
+                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                        {fmt(card.limit_total - card.limit_amount)} utilizado
+                      </div>
                     </div>
                   </div>
                 )
