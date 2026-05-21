@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import ImportModal from './ImportModal'
 
 // ============================================================
 // MOCK DATA — vazio para começar do zero
@@ -596,11 +597,7 @@ export default function FinanceOS() {
             <div style={{ color: "#6B7280", fontSize: 13, marginTop: 2 }}>{monthNames[filterMonth]} {filterYear}</div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={s.label}>De</div>
-            <input style={{ ...s.input, width: 140 }} type="date" value={dashFrom} onChange={e => setDashFrom(e.target.value)} />
-            <div style={s.label}>Até</div>
-            <input style={{ ...s.input, width: 140 }} type="date" value={dashTo} onChange={e => setDashTo(e.target.value)} />
-            <select style={{ ...s.select, width: "auto" }} value={filterMonth} onChange={e => setFilterMonth(+e.target.value)}>
+              <select style={{ ...s.select, width: "auto" }} value={filterMonth} onChange={e => setFilterMonth(+e.target.value)}>
               {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
             </select>
             <select style={{ ...s.select, width: "auto" }} value={filterYear} onChange={e => setFilterYear(+e.target.value)}>
@@ -813,7 +810,8 @@ export default function FinanceOS() {
               setAporteForm({ account_id: accounts[0]?.id || '', investment_id: investments[0]?.id || '', amount: '', description: 'Aporte', date: new Date().toISOString().split('T')[0], notes: '' })
               setShowAporteModal(true)
             }}>💸 Aportar conta → investimento</button>
-          <button style={s.btn("primary")} onClick={openAddTx}>+ Nova movimentação</button>
+          <button style={s.btn('ghost')} onClick={() => setShowModal('import')}>📂 Importar extrato</button>
+          <button style={s.btn("primary")} onClick={openAddTx}>➕ Nova movimentação</button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {[
@@ -2090,7 +2088,7 @@ export default function FinanceOS() {
         </div>
       )}
 
-      {showGuide && (
+    {showGuide && (
       <div style={s.modal} onClick={() => setShowGuide(false)}>
         <div onClick={e => e.stopPropagation()} style={{
           background: '#161B22',
@@ -2124,7 +2122,25 @@ export default function FinanceOS() {
         </div>
       </div>
     )}
-    </div>
+
+  {showModal === 'import' && (
+    <ImportModal
+      accounts={accounts}
+      categories={categories}
+      onClose={closeModal}
+      onImported={async (newTxs) => {
+        // Adiciona as transações importadas ao estado
+        setTransactions(prev => [...newTxs, ...prev])
+        // Recarrega saldos das contas (foram alterados pelo createBatch)
+        if (window.db) {
+          const accs = await window.db.accounts.list()
+          setAccounts(accs)
+        }
+        closeModal()
+      }}
+    />
+  )}
+  </div>
   );
 }
 

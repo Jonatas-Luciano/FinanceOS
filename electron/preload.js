@@ -94,6 +94,16 @@ contextBridge.exposeInMainWorld('db', {
     confirm: (id) => invoke('transactions:confirm', id),
 
     transferToInvestment: (data) => invoke('transactions:transferToInvestment', data),
+
+    /**
+     * Importa múltiplas transações em lote (uma única transação SQLite).
+     * Muito mais eficiente que chamar create() N vezes.
+     * Cada item deve seguir a mesma estrutura do create().
+     * @param {{ description, amount, type, category_id, account_id, date, tags, notes, status, due_date, external_id }[]} transactions
+     * @returns {Promise<Array>} array de transações salvas com id
+     */
+    createBatch: (transactions) => invoke('transactions:createBatch', transactions),
+    
   },
 
   // ── Investments ──────────────────────────────────────────────
