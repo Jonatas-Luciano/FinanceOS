@@ -597,11 +597,7 @@ export default function FinanceOS() {
             <div style={{ color: "#6B7280", fontSize: 13, marginTop: 2 }}>{monthNames[filterMonth]} {filterYear}</div>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={s.label}>De</div>
-            <input style={{ ...s.input, width: 140 }} type="date" value={dashFrom} onChange={e => setDashFrom(e.target.value)} />
-            <div style={s.label}>Até</div>
-            <input style={{ ...s.input, width: 140 }} type="date" value={dashTo} onChange={e => setDashTo(e.target.value)} />
-            <select style={{ ...s.select, width: "auto" }} value={filterMonth} onChange={e => setFilterMonth(+e.target.value)}>
+              <select style={{ ...s.select, width: "auto" }} value={filterMonth} onChange={e => setFilterMonth(+e.target.value)}>
               {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
             </select>
             <select style={{ ...s.select, width: "auto" }} value={filterYear} onChange={e => setFilterYear(+e.target.value)}>
