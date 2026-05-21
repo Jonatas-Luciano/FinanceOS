@@ -455,16 +455,16 @@ export default function FinanceOS() {
       })
       alert(`Fatura paga! Total: ${fmt(result.total)} — vencimento ${fmtDate(result.dueDate)}`)
       
-      // Recarrega tudo que pode ter mudado
-      await loadCardExpenses(selectedCard.id, selectedBillingMonth)
-      const [accs, txs] = await Promise.all([
+      const [exps, accs, txs] = await Promise.all([
+        window.db.creditCardExpenses.list({ card_id: selectedCard.id, billing_month: selectedBillingMonth }),
         window.db.accounts.list(),
         window.db.transactions.list({ month: filterMonth, year: filterYear })
       ])
+      setCardExpenses(exps)   // ← atualiza direto, sem depender do loadCardExpenses
       setAccounts(accs)
       setTransactions(txs)
     } catch (err) { alert('Erro: ' + err.message) }
-  }, [selectedCard, selectedBillingMonth, loadCardExpenses, filterMonth, filterYear])
+  }, [selectedCard, selectedBillingMonth, filterMonth, filterYear])
 
 // ── Styles ────────────────────────────────────────────────
   const s = {
@@ -872,23 +872,17 @@ export default function FinanceOS() {
                     <div style={{ marginTop: 10 }}>
                       <div style={s.label}>Limite disponível / total</div>
                       <div style={{ fontWeight: 700, color: card.color }}>
-                        {selectedCard?.id === card.id
-                          ? fmt(card.limit_amount - cardExpenses.filter(e => !e.paid).reduce((s, e) => s + e.amount, 0))
-                          : fmt(card.limit_amount)}
+                        {fmt(card.limit_amount)}
                         <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
-                          {' '}/ {fmt(card.limit_amount)}
+                          {' '}/ {fmt(card.limit_total || card.limit_amount)}
                         </span>
                       </div>
                       <MiniBar
-                        pct={selectedCard?.id === card.id
-                          ? (cardExpenses.filter(e => !e.paid).reduce((s, e) => s + e.amount, 0) / card.limit_amount) * 100
-                          : 0}
+                        pct={card.limit_total ? ((card.limit_total - card.limit_amount) / card.limit_total) * 100 : 0}
                         color={card.color}
                       />
                       <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
-                        {selectedCard?.id === card.id
-                          ? `${fmt(cardExpenses.filter(e => !e.paid).reduce((s, e) => s + e.amount, 0))} utilizado`
-                          : 'Selecione para ver uso'}
+                        {fmt(card.limit_total - card.limit_amount)} utilizado
                       </div>
                     </div>
                   </div>
