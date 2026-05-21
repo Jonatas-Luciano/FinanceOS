@@ -120,6 +120,7 @@ export default function FinanceOS() {
   const [cardExpenses, setCardExpenses] = useState([])
   const [cardForm, setCardForm] = useState({ name: '', limit_amount: '', closing_day: 10, due_day: 15, account_id: '', color: '#EC4899'})
   const [cardExpForm, setCardExpForm] = useState({ description: '', amount: '', category_id: '', date: new Date().toISOString().split('T')[0], notes: '', installments: 1 })
+  const [showGuide, setShowGuide] = useState(false)
 
   useEffect(() => {
     if (!window.db) return;
@@ -1187,6 +1188,7 @@ export default function FinanceOS() {
         <div style={s.row}>
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.5px" }}>Investimentos</div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button style={s.btn("ghost")} onClick={() => setShowGuide(true)}>📖 Guia da Jade</button>
             <button style={s.btn("ghost")} onClick={() => {
               setAporteForm({ account_id: accounts[0]?.id || '', investment_id: investments[0]?.id || '', amount: '', description: 'Aporte', date: new Date().toISOString().split('T')[0], notes: '' })
               setShowAporteModal(true)
@@ -1975,6 +1977,41 @@ export default function FinanceOS() {
           </div>
         </div>
       )}
+
+      {showGuide && (
+      <div style={s.modal} onClick={() => setShowGuide(false)}>
+        <div onClick={e => e.stopPropagation()} style={{
+          background: '#161B22',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 16,
+          width: '900px',
+          maxWidth: '95vw',
+          height: '90vh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '18px 24px',
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            flexShrink: 0,
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>📖 Guia de Investimentos</div>
+            <button onClick={() => setShowGuide(false)} style={{
+              background: 'none', border: 'none', color: '#6B7280',
+              fontSize: 20, cursor: 'pointer', lineHeight: 1,
+            }}>✕</button>
+          </div>
+
+          <iframe
+            src="./guia-investimentos.pdf"
+            style={{ flex: 1, border: 'none', width: '100%' }}
+            title="Guia de Investimentos"
+          />
+        </div>
+      </div>
+    )}
     </div>
   );
 }
