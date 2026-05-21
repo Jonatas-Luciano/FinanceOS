@@ -107,7 +107,7 @@ export default function FinanceOS() {
   const [dbError, setDbError] = useState(null);
   const [catForm, setCatForm] = useState({ name: '', icon: '📦', type: 'expense', color: '#6B7280', budget: ''})
   const [recurring, setRecurring] = useState([])
-  const [recForm, setRecForm] = useState({description: '', amount: '', type: 'expense', category_id: 1, account_id: '', day_of_month: 1, tags: '', notes: ''})
+  const [recForm, setRecForm] = useState({description: '', amount: '', type: 'expense', category_id: 1, account_id: '', day_of_month: 1, end_date: '',  tags: '', notes: ''})
   const [reportFrom, setReportFrom] = useState(new Date(thisYear, thisMonth, 1).toISOString().split('T')[0])
   const [reportTo, setReportTo] = useState(new Date().toISOString().split('T')[0])
   const [reportData, setReportData] = useState(null)
@@ -1164,6 +1164,7 @@ export default function FinanceOS() {
                     <div style={{ fontWeight: 600, fontSize: 14 }}>{r.description}</div>
                     <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>
                       Dia {r.day_of_month} · {c?.name} · {a?.name}
+                      {r.end_date && ` · até ${fmtDate(r.end_date)}`}
                     </div>
                   </div>
                   <div style={{
@@ -1877,7 +1878,15 @@ export default function FinanceOS() {
                 <input style={s.input} type={f.type} value={recForm[f.key]}
                   onChange={e => setRecForm(fm => ({ ...fm, [f.key]: e.target.value }))} />
               </div>
-            ))}            
+            ))}         
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Data de término (opcional)</div>
+              <input style={s.input} type='date' value={recForm.end_date || ''}
+                onChange={e => setRecForm(f => ({ ...f, end_date: e.target.value }))} />
+              <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                Deixe em branco para recorrência infinita
+              </div>
+            </div>   
             <div style={s.fr}>
               <div style={{ ...s.label, marginBottom: 4 }}>Categoria</div>
               <select style={s.select} value={recForm.category_id}

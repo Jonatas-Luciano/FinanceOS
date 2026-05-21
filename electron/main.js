@@ -88,7 +88,8 @@ function initDatabase() {
       active      INTEGER NOT NULL DEFAULT 1,
       tags        TEXT    NOT NULL DEFAULT '[]',
       notes       TEXT    NOT NULL DEFAULT '',
-      created_at  TEXT    NOT NULL DEFAULT (date('now'))
+      created_at  TEXT    NOT NULL DEFAULT (date('now')),
+      end_date TEXT NOT NULL DEFAULT ''
     );
 
     CREATE TABLE IF NOT EXISTS credit_cards (
@@ -497,6 +498,10 @@ ipcMain.handle('recurring:generateForMonth', (_, { month, year }) => {
       const recCreatedAt = r.created_at || '1970-01-01'
       const recCreatedMonth = recCreatedAt.substring(0, 7) // 'YYYY-MM'
       if (prefix < recCreatedMonth) continue
+      if (r.end_date) {
+        const endMonth = r.end_date.substring(0, 7) // 'YYYY-MM'
+        if (prefix > endMonth) continue
+      }
 
       // Regra 2: dentro do mês atual, só gerar se today >= day_of_month
       const isCurrentMonth = (year === today.getFullYear() && month === today.getMonth())
