@@ -2030,35 +2030,95 @@ export default function FinanceOS() {
 // ============================================================
 function InvestmentSimulator({ s }) {
   const [amount, setAmount] = useState(10000);
+  const [monthly, setMonthly] = useState(500);
   const [rate, setRate] = useState(11.5);
   const [years, setYears] = useState(5);
-  const result = amount * Math.pow(1 + rate / 100, years);
-  const gain = result - amount;
+
+  // Fórmula de valor futuro com aportes mensais:
+  // FV = PV*(1+r)^n + PMT * [((1+r)^n - 1) / r]
+  // onde r = taxa mensal, n = meses
+  const r = rate / 100 / 12;
+  const n = years * 12;
+  const fv = r === 0
+    ? amount + monthly * n
+    : amount * Math.pow(1 + r, n) + monthly * ((Math.pow(1 + r, n) - 1) / r);
+  const totalInvested = amount + monthly * n;
+  const gain = fv - totalInvested;
+
+  const sliders = [
+    { label: "Valor inicial (R$)", value: amount,   min: 0,    max: 200000, step: 500,  set: setAmount,  display: `R$ ${amount.toLocaleString("pt-BR")}` },
+    { label: "Aporte mensal (R$)", value: monthly,  min: 0,    max: 10000,  step: 50,  set: setMonthly, display: `R$ ${monthly.toLocaleString("pt-BR")}` },
+    { label: "Taxa anual (%)",     value: rate,     min: 0.5,  max: 30,     step: 0.1,  set: setRate,    display: `${rate.toFixed(1)}%` },
+    { label: "Prazo (anos)",       value: years,    min: 1,    max: 30,     step: 1,    set: setYears,   display: `${years} anos` },
+  ];
+
+  // Série anual para o mini-gráfico
+  const chartData = Array.from({ length: years + 1 }, (_, i) => {
+    const ni = i * 12;
+    const fvi = r === 0
+      ? amount + monthly * ni
+      : amount * Math.pow(1 + r, ni) + monthly * ((Math.pow(1 + r, ni) - 1) / r);
+    return { fv: fvi, invested: amount + monthly * ni };
+  });
+  const maxFv = chartData[chartData.length - 1].fv || 1;
+
+  const fmt2 = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
   return (
     <div style={s.card}>
       <div style={s.sectionTitle}>🧮 Simulador de Investimentos</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
-        {[
-          { label: "Valor inicial (R$)", value: amount, min: 100, max: 500000, step: 100, set: setAmount, display: `R$ ${amount.toLocaleString("pt-BR")}` },
-          { label: "Taxa anual (%)", value: rate, min: 0.5, max: 30, step: 0.1, set: setRate, display: `${rate.toFixed(1)}%` },
-          { label: "Prazo (anos)", value: years, min: 1, max: 30, step: 1, set: setYears, display: `${years} anos` },
-        ].map((f, i) => (
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+        {sliders.map((f, i) => (
           <div key={i}>
             <div style={{ ...s.label, marginBottom: 6 }}>{f.label}</div>
-            <input type="range" min={f.min} max={f.max} step={f.step} value={f.value} onChange={e => f.set(+e.target.value)} style={{ width: "100%", accentColor: "#8B5CF6" }} />
+            <input type="range" min={f.min} max={f.max} step={f.step} value={f.value}
+              onChange={e => f.set(+e.target.value)}
+              style={{ width: "100%", accentColor: "#8B5CF6" }} />
             <div style={{ fontSize: 16, fontWeight: 700, color: "#8B5CF6", marginTop: 4 }}>{f.display}</div>
           </div>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+
+      {/* Mini gráfico de evolução */}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 80, marginBottom: 16 }}>
+        {chartData.map((d, i) => (
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 0 }}>
+            <div style={{ width: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end", height: 70 }}>
+              <div style={{ width: "100%", height: `${(d.fv / maxFv) * 70}px`, position: "relative" }}>
+                {/* Rendimento (topo, roxo) */}
+                <div style={{
+                  position: "absolute", bottom: `${(d.invested / d.fv) * 100}%`, top: 0,
+                  width: "100%", background: "#8B5CF6", borderRadius: "3px 3px 0 0"
+                }} />
+                {/* Aportado (base, azul) */}
+                <div style={{
+                  position: "absolute", bottom: 0, height: `${(d.invested / d.fv) * 100}%`,
+                  width: "100%", background: "#3B82F6",
+                  borderRadius: i === 0 ? "3px 3px 0 0" : "0"
+                }} />
+              </div>
+            </div>
+            {i % Math.max(1, Math.floor(years / 5)) === 0 && (
+              <div style={{ fontSize: 9, color: "#6B7280", marginTop: 2 }}>{i}a</div>
+            )}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 16, fontSize: 11, color: "#6B7280", marginBottom: 16 }}>
+        <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#3B82F6", borderRadius: 2, marginRight: 4 }} />Total aportado</span>
+        <span><span style={{ display: "inline-block", width: 8, height: 8, background: "#8B5CF6", borderRadius: 2, marginRight: 4 }} />Rendimento</span>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16 }}>
         {[
-          { label: "Valor final", value: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(result), color: "#10B981" },
-          { label: "Rendimento", value: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(gain), color: "#8B5CF6" },
-          { label: "Multiplicador", value: `${(result / amount).toFixed(2)}x`, color: "#F59E0B" },
+          { label: "Total aportado",  value: fmt2(totalInvested), color: "#3B82F6" },
+          { label: "Valor final",     value: fmt2(fv),            color: "#10B981" },
+          { label: "Rendimento",      value: fmt2(gain),          color: "#8B5CF6" },
+          { label: "Multiplicador",   value: `${(fv / (totalInvested || 1)).toFixed(2)}x`, color: "#F59E0B" },
         ].map((item, i) => (
           <div key={i} style={{ ...s.cardSm, background: "#0D1117" }}>
             <div style={s.label}>{item.label}</div>
-            <div style={{ fontSize: 22, fontWeight: 700, color: item.color, marginTop: 4 }}>{item.value}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: item.color, marginTop: 4 }}>{item.value}</div>
           </div>
         ))}
       </div>
