@@ -849,6 +849,11 @@ export default function FinanceOS() {
           : <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
               {creditCards.map(card => {
                 const a = acc(card.account_id)
+                // calcula total gasto na fatura do mês selecionado
+                const cardTotal = cardExpenses
+                  .filter(e => e.card_id === card.id && !e.paid)
+                  .reduce((s, e) => s + e.amount, 0)
+                const available = card.limit_amount - (selectedCard?.id === card.id ? cardTotal : 0)
                 return (
                   <div key={card.id} onClick={() => { setSelectedCard(card); loadCardExpenses(card.id, selectedBillingMonth) }}
                     style={{ ...s.card, borderTop: `4px solid ${card.color}`, cursor: 'pointer',
@@ -867,17 +872,23 @@ export default function FinanceOS() {
                     <div style={{ marginTop: 10 }}>
                       <div style={s.label}>Limite disponível / total</div>
                       <div style={{ fontWeight: 700, color: card.color }}>
-                        {fmt(card.limit_amount)}
+                        {selectedCard?.id === card.id
+                          ? fmt(card.limit_amount - cardExpenses.filter(e => !e.paid).reduce((s, e) => s + e.amount, 0))
+                          : fmt(card.limit_amount)}
                         <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 400 }}>
-                          {' '}/ {fmt(card.limit_total || card.limit_amount)}
+                          {' '}/ {fmt(card.limit_amount)}
                         </span>
                       </div>
                       <MiniBar
-                        pct={card.limit_total ? ((card.limit_total - card.limit_amount) / card.limit_total) * 100 : 0}
+                        pct={selectedCard?.id === card.id
+                          ? (cardExpenses.filter(e => !e.paid).reduce((s, e) => s + e.amount, 0) / card.limit_amount) * 100
+                          : 0}
                         color={card.color}
                       />
                       <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
-                        {fmt(card.limit_total - card.limit_amount)} utilizado
+                        {selectedCard?.id === card.id
+                          ? `${fmt(cardExpenses.filter(e => !e.paid).reduce((s, e) => s + e.amount, 0))} utilizado`
+                          : 'Selecione para ver uso'}
                       </div>
                     </div>
                   </div>
