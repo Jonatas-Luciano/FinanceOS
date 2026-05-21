@@ -867,8 +867,8 @@ export default function FinanceOS() {
     // CREDIT CARDS
     credit_cards: (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={s.row}>
-          <div style={{ fontSize: 22, fontWeight: 700 }}>Cartões de Crédito</div>
+        <div style={s.row}>          
+          <div style={{ fontSize: 22, fontWeight: 700 }}>Cartões de Crédito<div style={{ fontWeight: 400, fontSize: 10, color: '#6B7280'}}>Necessário recarregar a página após pagar a fatura para atualizar limite disponível</div></div>
           <button style={s.btn('primary')} onClick={openAddCard}>+ Novo cartão</button>
         </div>
 
@@ -886,9 +886,8 @@ export default function FinanceOS() {
                 return (
                   <div key={card.id} onClick={() => { setSelectedCard(card); loadCardExpenses(card.id, selectedBillingMonth) }}
                     style={{ ...s.card, borderTop: `4px solid ${card.color}`, cursor: 'pointer',
-                      outline: selectedCard?.id === card.id ? `2px solid ${card.color}` : 'none' }}>
-                    <div style={s.row}>
-                      <div style={{ fontWeight: 400, fontSize: 10 }}>Necessário recarregar a página após pagar a fatura para atualizar limite disponível</div>
+                      outline: selectedCard?.id === card.id ? `2px solid ${card.color}` : 'none' }}>                    
+                    <div style={s.row}>                      
                       <div style={{ fontWeight: 700, fontSize: 15 }}>{card.name}</div>
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button onClick={e => { e.stopPropagation(); openEditCard(card) }} style={s.iconBtn}>✏️</button>
