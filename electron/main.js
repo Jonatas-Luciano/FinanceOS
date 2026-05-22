@@ -558,13 +558,20 @@ ipcMain.handle('recurring:generateForMonth', (_) => {
   const currentMonth = today.getMonth() // 0-based
 
   const rows = db.prepare('SELECT * FROM recurring WHERE active = 1').all()
+  console.log('[recurring] rows:', JSON.stringify(rows))
   const created = []
 
   const run = db.transaction(() => {
     for (const r of rows) {
       // Usa start_date se preenchida, senão created_at
-      const startStr = (r.start_date && r.start_date.trim()) ? r.start_date : (r.created_at || todayStr)
+      const startStr = (r.start_date && r.start_date.trim())
+        ? r.start_date
+        : (r.created_at && r.created_at.trim())
+          ? r.created_at
+          : todayStr  // fallback seguro
+
       const startDate = new Date(startStr + 'T00:00:00')
+      if (isNaN(startDate.getTime())) continue
       const startYear  = startDate.getFullYear()
       const startMonth = startDate.getMonth() // 0-based
       const startDay   = startDate.getDate()
