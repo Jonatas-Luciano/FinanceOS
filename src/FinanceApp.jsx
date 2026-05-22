@@ -171,6 +171,17 @@ useEffect(() => {
       .then(setTransactions).catch(console.error);
   }, [filterMonth, filterYear, dbReady]);
 
+useEffect(() => {
+  const handler = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault()
+      openAddTx()
+    }
+  }
+  window.addEventListener('keydown', handler)
+  return () => window.removeEventListener('keydown', handler)
+}, [accounts, categories])
+
   // Derived
   const monthTx = useMemo(() => transactions.filter(t => {
     const d = new Date(t.date + "T00:00:00");
@@ -238,6 +249,7 @@ useEffect(() => {
   };
   const saveTx = useCallback(async () => {
     if (!txForm.description || !txForm.amount) return;
+    if (txForm.type === 'transfer' && !txForm.to_account_id) return
     const payload = { ...txForm, amount: parseFloat(txForm.amount), tags: txForm.tags ? txForm.tags.split(",").map(t => t.trim()).filter(Boolean) : [] };
     if (editTarget) {
       if (window.db) {
