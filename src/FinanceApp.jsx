@@ -108,7 +108,7 @@ export default function FinanceOS() {
   const [dbError, setDbError] = useState(null);
   const [catForm, setCatForm] = useState({ name: '', icon: '📦', type: 'expense', color: '#6B7280', budget: ''})
   const [recurring, setRecurring] = useState([])
-  const [recForm, setRecForm] = useState({description: '', amount: '', type: 'expense', category_id: 1, account_id: '', day_of_month: 1, end_date: '',  tags: '', notes: ''})
+  const [recForm, setRecForm] = useState({description: '', amount: '', type: 'expense', category_id: 1,account_id: '', day_of_month: 1, end_date: '',start_date: new Date().toISOString().split('T')[0],tags: '', notes: ''})
   const [reportFrom, setReportFrom] = useState(new Date(thisYear, thisMonth, 1).toISOString().split('T')[0])
   const [reportTo, setReportTo] = useState(new Date().toISOString().split('T')[0])
   const [reportData, setReportData] = useState(null)
@@ -403,7 +403,9 @@ useEffect(() => {
   setRecForm({
     description: '', amount: '', type: defaultType,
     category_id: firstCat?.id || categories[0]?.id || 1,
-    account_id: accounts[0]?.id || '', day_of_month: 1, tags: '', notes: ''
+    account_id: accounts[0]?.id || '', day_of_month: 1,
+    end_date: '', start_date: new Date().toISOString().split('T')[0],
+    tags: '', notes: ''
   })
   setShowModal('rec')
 }
@@ -1252,9 +1254,7 @@ useEffect(() => {
           <div style={{ display: 'flex', gap: 8 }}>
             {window.db && (
               <button style={s.btn('ghost')} onClick={async () => {
-                const news = await window.db.recurring.generateForMonth({
-                  month: filterMonth, year: filterYear
-                  })
+                const news = await window.db.recurring.generateForMonth()
                   if (news.length) {
                   const done = news.filter(t => t.status === 'done').length
                   const pending = news.filter(t => t.status === 'pending').length
@@ -1269,7 +1269,7 @@ useEffect(() => {
                 } else {
                   showConfirm('Nenhum lançamento novo para gerar neste mês.',() => {});
                 }
-              }}>⚡ Gerar pendentes ({monthNames[filterMonth]})</button>
+              }}>⚡ Gerar pendentes </button>
             )}
             <button style={s.btn('primary')} onClick={openAddRec}>+ Novo fixo</button>
           </div>
@@ -2055,6 +2055,14 @@ useEffect(() => {
                   onChange={e => setRecForm(fm => ({ ...fm, [f.key]: e.target.value }))} />
               </div>
             ))}         
+            <div style={s.fr}>
+              <div style={{ ...s.label, marginBottom: 4 }}>Data de início *</div>
+              <input style={s.input} type='date' value={recForm.start_date || ''}
+                onChange={e => setRecForm(f => ({ ...f, start_date: e.target.value }))} />
+              <div style={{ fontSize: 11, color: '#6B7280', marginTop: 4 }}>
+                Define a partir de quando este lançamento passa a valer.
+              </div>
+            </div>
             <div style={s.fr}>
               <div style={{ ...s.label, marginBottom: 4 }}>Data de término (opcional)</div>
               <input style={s.input} type='date' value={recForm.end_date || ''}

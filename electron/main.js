@@ -88,6 +88,7 @@ function initDatabase() {
       active      INTEGER NOT NULL DEFAULT 1,
       tags        TEXT    NOT NULL DEFAULT '[]',
       notes       TEXT    NOT NULL DEFAULT '',
+      start_date  TEXT    NOT NULL DEFAULT (date('now')),
       created_at  TEXT    NOT NULL DEFAULT (date('now')),
       end_date TEXT NOT NULL DEFAULT ''
     );
@@ -130,6 +131,10 @@ function initDatabase() {
     db.prepare("ALTER TABLE transactions ADD COLUMN external_id TEXT NOT NULL DEFAULT ''").run()
     db.prepare("CREATE UNIQUE INDEX IF NOT EXISTS idx_tx_external_id ON transactions(external_id) WHERE external_id != ''").run()
   } catch (_) { /* coluna já existe — ignora */ }
+
+  try {
+    db.prepare("ALTER TABLE recurring ADD COLUMN start_date TEXT NOT NULL DEFAULT ''").run()
+  } catch (_) {}
 
   seedIfEmpty()
 }
@@ -548,14 +553,14 @@ ipcMain.handle('recurring:list', () => {
 
 ipcMain.handle('recurring:create', (_, data) => {
   const { description, amount, type, category_id, account_id,
-          day_of_month = 1, tags = [], notes = '' } = data
-  const created_at = new Date().toISOString().split('T')[0] // YYYY-MM-DD
+          day_of_month = 1, tags = [], notes = '', start_date = '' } = data  // ← adicionar start_date
+  const created_at = new Date().toISOString().split('T')[0]
   const result = db.prepare(
     `INSERT INTO recurring
-     (description, amount, type, category_id, account_id, day_of_month, tags, notes, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?)`
+     (description, amount, type, category_id, account_id, day_of_month, tags, notes, created_at, start_date)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`                                           // ← +1 coluna
   ).run(description, amount, type, category_id, account_id, day_of_month,
-        JSON.stringify(tags), notes, created_at)
+        JSON.stringify(tags), notes, created_at, start_date || created_at)  // ← fallback para created_at
   const row = db.prepare('SELECT * FROM recurring WHERE id = ?').get(result.lastInsertRowid)
   return { ...row, tags: JSON.parse(row.tags || '[]') }
 })
@@ -574,74 +579,88 @@ ipcMain.handle('recurring:delete', (_, id) => {
 })
 
 // Gera lançamentos pendentes para o mês atual a partir dos recorrentes ativos
-ipcMain.handle('recurring:generateForMonth', (_, { month, year }) => {
-  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
+ipcMain.handle('recurring:generateForMonth', (_) => {
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
-
-  // Regra 1: nunca gerar para meses anteriores ao mês atual
-  const targetDate = new Date(year, month, 1)
-  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1)
-  if (targetDate < currentMonthStart) return []
+  const currentYear  = today.getFullYear()
+  const currentMonth = today.getMonth()
 
   const rows = db.prepare('SELECT * FROM recurring WHERE active = 1').all()
   const created = []
 
   const run = db.transaction(() => {
     for (const r of rows) {
-      // Regra 1: não gerar para meses anteriores à criação do recorrente
-      const recCreatedAt = r.created_at || '1970-01-01'
-      const recCreatedMonth = recCreatedAt.substring(0, 7) // 'YYYY-MM'
-      if (prefix < recCreatedMonth) continue
+      const startStr = (r.start_date && r.start_date.trim())
+        ? r.start_date
+        : (r.created_at && r.created_at.trim())
+          ? r.created_at
+          : todayStr
 
-      // Se criado no mesmo mês e o dia de criação > day_of_month, pula para o mês seguinte
-      if (prefix === recCreatedMonth) {
-        const createdDay = parseInt(recCreatedAt.split('-')[2], 10)
-        if (createdDay > r.day_of_month) continue
+      const startDate = new Date(startStr + 'T00:00:00')
+      if (isNaN(startDate.getTime())) continue
+
+      const startYear  = startDate.getFullYear()
+      const startMonth = startDate.getMonth()
+      const startDay   = startDate.getDate()
+
+      if (r.end_date && todayStr > r.end_date) continue
+
+      // Mês inicial de geração
+      let genYear  = startYear
+      let genMonth = startMonth
+      if (startDay > r.day_of_month) {
+        genMonth++
+        if (genMonth > 11) { genMonth = 0; genYear++ }
       }
-      if (r.end_date) {
-        const endMonth = r.end_date.substring(0, 7) // 'YYYY-MM'
-        if (prefix > endMonth) continue
-      }
 
-      // Regra 2: dentro do mês atual, só gerar se today >= day_of_month
-      const isCurrentMonth = (year === today.getFullYear() && month === today.getMonth())
-      if (isCurrentMonth && today.getDate() < r.day_of_month) continue
+      let maxYear  = currentYear
+      let maxMonth = currentMonth + 1
+      if (maxMonth > 11) { maxMonth = 0; maxYear++ }
+      // Itera até o mês atual (inclusive)
+      while (
+        genYear < maxYear ||
+        (genYear === maxYear && genMonth <= maxMonth)
+      ) {
+        const prefix  = `${genYear}-${String(genMonth + 1).padStart(2, '0')}`
+        const dayStr  = String(r.day_of_month).padStart(2, '0')
+        const dateStr = `${prefix}-${dayStr}`
 
-      const dayStr = String(r.day_of_month).padStart(2, '0')
-      const dateStr = `${prefix}-${dayStr}`
+        if (r.end_date && dateStr > r.end_date) break
 
-      const exists = db.prepare(
-        `SELECT id FROM transactions
-         WHERE description = ? AND amount = ? AND type = ?
-           AND strftime('%Y-%m', date) = ?`
-      ).get(r.description, r.amount, r.type, prefix)
-      if (exists) continue
+        const exists = db.prepare(
+          `SELECT id FROM transactions
+           WHERE description = ? AND amount = ? AND type = ?
+             AND strftime('%Y-%m', date) = ?`
+        ).get(r.description, r.amount, r.type, prefix)
 
-      // Se a data já passou → efetiva; senão → pendente
-      const isDue = dateStr <= todayStr
-      const status = isDue ? 'done' : 'pending'
+        if (!exists) {
+          // Data passou → done e ajusta saldo; ainda não chegou → pending
+          const isDone = dateStr <= todayStr
+          const status = isDone ? 'done' : 'pending'
 
-      const result = db.prepare(
-        `INSERT INTO transactions
-         (description, amount, type, category_id, account_id,
-          date, tags, notes, status, due_date)
-         VALUES (?,?,?,?,?,?,?,?,?,?)`
-      ).run(r.description, r.amount, r.type, r.category_id, r.account_id,
-            dateStr, r.tags, r.notes, status, dateStr)
+          const result = db.prepare(
+            `INSERT INTO transactions
+             (description, amount, type, category_id, account_id,
+              date, tags, notes, status, due_date)
+             VALUES (?,?,?,?,?,?,?,?,?,?)`
+          ).run(r.description, r.amount, r.type, r.category_id, r.account_id,
+                dateStr, r.tags, r.notes, status, dateStr)
 
-      if (isDue) {
-        if (r.type === 'income') {
-          db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?')
-            .run(r.amount, r.account_id)
-        } else if (r.type === 'expense') {
-          db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?')
-            .run(r.amount, r.account_id)
+          if (isDone) {
+            db.prepare(
+              r.type === 'income'
+                ? 'UPDATE accounts SET balance = balance + ? WHERE id = ?'
+                : 'UPDATE accounts SET balance = balance - ? WHERE id = ?'
+            ).run(r.amount, r.account_id)
+          }
+
+          const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid)
+          created.push({ ...row, tags: JSON.parse(row.tags || '[]') })
         }
-      }
 
-      const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid)
-      created.push({ ...row, tags: JSON.parse(row.tags || '[]') })
+        genMonth++
+        if (genMonth > 11) { genMonth = 0; genYear++ }
+      }
     }
   })
   run()
