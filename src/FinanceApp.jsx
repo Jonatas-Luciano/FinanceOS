@@ -248,8 +248,14 @@ useEffect(() => {
     setShowModal("tx");
   };
   const saveTx = useCallback(async () => {
-    if (!txForm.description || !txForm.amount) return;
-    if (txForm.type === 'transfer' && !txForm.to_account_id) return
+    if (!txForm.description || !txForm.amount) return;      
+    if (txForm.type === 'transfer' && !txForm.to_account_id) {
+      showConfirm(
+        'Selecione a conta de destino da transferência.',
+        () => {}
+      );
+      return;
+    }
     const payload = { ...txForm, amount: parseFloat(txForm.amount), tags: txForm.tags ? txForm.tags.split(",").map(t => t.trim()).filter(Boolean) : [] };
     if (editTarget) {
       if (window.db) {
@@ -1255,7 +1261,7 @@ useEffect(() => {
                   const parts = []
                     if (done) parts.push(`${done} efetivado(s)`)
                     if (pending) parts.push(`${pending} pendente(s)`)
-                      showConfirm(`${news.length} lançamento(s) gerado(s): ${parts.join(', ')}.`,() => {});
+                      showConfirm(`${news.length} lançamento(s) gerado(s): ${parts.join(', ')}.`, () => {});
                   // Recarrega contas para refletir saldos atualizados
                   const accs = await window.db.accounts.list()
                   setAccounts(accs)
@@ -1647,7 +1653,14 @@ useEffect(() => {
             <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>{editTarget ? "Editar Movimentação" : "Nova Movimentação"}</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
               {["expense","income","transfer"].map(type => (
-                <button key={type} onClick={() => setTxForm(f => ({ ...f, type }))} style={{ ...s.btn(txForm.type === type ? "primary" : "ghost"), flex: 1, justifyContent: "center" }}>
+                <button key={type} onClick={() => {
+                  if (type === 'transfer') {
+                    const firstDest = accounts.find(a => a.id !== +txForm.account_id)
+                    setTxForm(f => ({ ...f, type, to_account_id: firstDest?.id || '' }))
+                  } else {
+                    setTxForm(f => ({ ...f, type }))
+                  }
+                }} style={{ ...s.btn(txForm.type === type ? "primary" : "ghost"), flex: 1, justifyContent: "center" }}>
                   {type === "expense" ? "📤 Despesa" : type === "income" ? "📥 Receita" : "↔ Transf."}
                 </button>
               ))}
@@ -1697,7 +1710,13 @@ useEffect(() => {
               <div style={{ ...s.fr, marginBottom: 20 }}>
                 <div style={{ ...s.label, marginBottom: 4 }}>Conta de Destino</div>
                 <select style={s.select} value={txForm.to_account_id || ''}
-                  onChange={e => setTxForm(f => ({ ...f, to_account_id: +e.target.value }))}>
+                  onChange={e => setTxForm(f => ({ ...f, to_account_id: +e.target.value }))}
+                  ref={el => {
+                    if (el && !txForm.to_account_id) {
+                      const firstOpt = accounts.find(a => a.id !== +txForm.account_id)
+                      if (firstOpt) setTxForm(f => ({ ...f, to_account_id: firstOpt.id }))
+                    }
+                  }}>
                   {accounts
                     .filter(a => a.id !== +txForm.account_id)
                     .map(a => <option key={a.id} value={a.id}>{a.name} ({a.bank})</option>)}
