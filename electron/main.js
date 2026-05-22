@@ -4,7 +4,7 @@
  * e expõe todas as operações necessárias via IPC.
  */
 
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const Database = require('better-sqlite3')
 
@@ -250,7 +250,7 @@ ipcMain.handle('transactions:list', (_, { month, year } = {}) => {
 
 ipcMain.handle('transactions:create', (_, tx) => {
   const { description, amount, type, category_id, account_id,
-          date, tags, notes, status = 'done', due_date = '' } = tx
+        to_account_id = null, date, tags, notes, status = 'done', due_date = '' } = tx
   const tagsJson = JSON.stringify(Array.isArray(tags) ? tags : [])
 
   const run = db.transaction(() => {
@@ -294,10 +294,12 @@ ipcMain.handle('transactions:update', (_, { id, ...data }) => {
     if (!old) throw new Error('Transação não encontrada')
 
     // Reverte efeito da transação antiga no saldo
-    if (old.type === 'income') {
-      db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(old.amount, old.account_id)
-    } else if (old.type === 'expense') {
-      db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(old.amount, old.account_id)
+    if (old.status === 'done') {
+      if (old.type === 'income') {
+        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(old.amount, old.account_id)
+      } else if (old.type === 'expense') {
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(old.amount, old.account_id)
+      }
     }
 
     // Aplica dados novos
@@ -309,10 +311,12 @@ ipcMain.handle('transactions:update', (_, { id, ...data }) => {
 
     // Aplica efeito da nova transação no saldo
     const updated = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id)
-    if (updated.type === 'income') {
-      db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(updated.amount, updated.account_id)
-    } else if (updated.type === 'expense') {
-      db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(updated.amount, updated.account_id)
+    if (updated.status === 'done') {
+      if (updated.type === 'income') {
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(updated.amount, updated.account_id)
+      } else if (updated.type === 'expense') {
+        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(updated.amount, updated.account_id)
+      }
     }
 
     return { ...updated, tags: JSON.parse(updated.tags || '[]') }
@@ -326,11 +330,13 @@ ipcMain.handle('transactions:delete', (_, id) => {
     const tx = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id)
     if (!tx) throw new Error('Transação não encontrada')
 
-    // Reverte saldo
-    if (tx.type === 'income') {
-      db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(tx.amount, tx.account_id)
-    } else if (tx.type === 'expense') {
-      db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(tx.amount, tx.account_id)
+    // Reverte saldo apenas se a transação estava efetivada
+    if (tx.status === 'done') {
+      if (tx.type === 'income') {
+        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(tx.amount, tx.account_id)
+      } else if (tx.type === 'expense') {
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(tx.amount, tx.account_id)
+      }
     }
 
     db.prepare('DELETE FROM transactions WHERE id = ?').run(id)
@@ -821,6 +827,41 @@ ipcMain.handle('reports:byRange', (_, { from, to }) => {
 
 // ── Backup / Export ───────────────────────────────────────────
 ipcMain.handle('db:exportPath', () => dbPath)
+
+const fs = require('fs')
+
+ipcMain.handle('db:backup', (_, destPath) => {
+  db.backup(destPath)
+  return { success: true, path: destPath }
+})
+
+ipcMain.handle('dialog:saveBackup', async () => {
+  const { filePath } = await dialog.showSaveDialog({
+    title: 'Salvar backup',
+    defaultPath: `financeos-backup-${new Date().toISOString().split('T')[0]}.db`,
+    filters: [{ name: 'Database', extensions: ['db'] }],
+  })
+  return filePath || null
+})
+
+ipcMain.handle('dialog:openRestore', async () => {
+  const { filePaths } = await dialog.showOpenDialog({
+    title: 'Selecionar backup para restaurar',
+    filters: [{ name: 'Database', extensions: ['db'] }],
+    properties: ['openFile'],
+  })
+  return filePaths[0] || null
+})
+
+ipcMain.handle('db:restore', (_, srcPath) => {
+  if (!fs.existsSync(srcPath)) throw new Error('Arquivo não encontrado: ' + srcPath)
+  db.close()
+  fs.copyFileSync(srcPath, dbPath)
+  db = new Database(dbPath)
+  db.pragma('journal_mode = WAL')
+  db.pragma('foreign_keys = ON')
+  return { success: true }
+})
 
 // ─── Janela ───────────────────────────────────────────────────
 function createWindow() {
