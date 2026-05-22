@@ -250,16 +250,20 @@ ipcMain.handle('transactions:list', (_, { month, year } = {}) => {
 
 ipcMain.handle('transactions:create', (_, tx) => {
   const { description, amount, type, category_id, account_id,
-        to_account_id = null, date, tags, notes, status = 'done', due_date = '' } = tx
+      date, tags, notes, status = 'done', due_date = '' } = tx
+  // Log temporário — remover após confirmar o fix
+  const to_account_id = tx.to_account_id ? parseInt(tx.to_account_id) : null
+
+
   const tagsJson = JSON.stringify(Array.isArray(tags) ? tags : [])
 
   const run = db.transaction(() => {
     const result = db.prepare(
       `INSERT INTO transactions
-       (description, amount, type, category_id, account_id,
+      (description, amount, type, category_id, account_id, to_account_id,
         date, tags, notes, status, due_date)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`
-    ).run(description, amount, type, category_id, account_id,
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    ).run(description, amount, type, category_id, account_id, to_account_id,
           date, tagsJson, notes ?? '', status, due_date)
 
     // Ajuste de saldo
@@ -293,29 +297,43 @@ ipcMain.handle('transactions:update', (_, { id, ...data }) => {
     const old = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id)
     if (!old) throw new Error('Transação não encontrada')
 
+    // Impede mudança de tipo se a transação original é uma transferência,
+    // ou impede transformar outra em transferência
+    const newData = { ...data }
+    if (old.type === 'transfer' || newData.type === 'transfer') {
+      newData.type = old.type  // mantém o tipo original
+    }
+
     // Reverte efeito da transação antiga no saldo
     if (old.status === 'done') {
       if (old.type === 'income') {
         db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(old.amount, old.account_id)
       } else if (old.type === 'expense') {
         db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(old.amount, old.account_id)
+      } else if (old.type === 'transfer') {
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(old.amount, old.account_id)
+        if (old.to_account_id) {
+          db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(old.amount, old.to_account_id)
+        }
       }
     }
 
-    // Aplica dados novos
-    const newData = { ...data }
     if (Array.isArray(newData.tags)) newData.tags = JSON.stringify(newData.tags)
 
     const fields = Object.keys(newData).map(k => `${k} = ?`).join(', ')
     db.prepare(`UPDATE transactions SET ${fields} WHERE id = ?`).run(...Object.values(newData), id)
 
-    // Aplica efeito da nova transação no saldo
     const updated = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id)
     if (updated.status === 'done') {
       if (updated.type === 'income') {
         db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(updated.amount, updated.account_id)
       } else if (updated.type === 'expense') {
         db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(updated.amount, updated.account_id)
+      } else if (updated.type === 'transfer') {
+        db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(updated.amount, updated.account_id)
+        if (updated.to_account_id) {
+          db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(updated.amount, updated.to_account_id)
+        }
       }
     }
 
@@ -336,6 +354,11 @@ ipcMain.handle('transactions:delete', (_, id) => {
         db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(tx.amount, tx.account_id)
       } else if (tx.type === 'expense') {
         db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(tx.amount, tx.account_id)
+      } else if (tx.type === 'transfer') {
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(tx.amount, tx.account_id)
+        if (tx.to_account_id) {
+          db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(tx.amount, tx.to_account_id)
+        }
       }
     }
 
