@@ -555,33 +555,29 @@ ipcMain.handle('recurring:generateForMonth', (_) => {
   const today = new Date()
   const todayStr = today.toISOString().split('T')[0]
   const currentYear  = today.getFullYear()
-  const currentMonth = today.getMonth() // 0-based
+  const currentMonth = today.getMonth()
 
   const rows = db.prepare('SELECT * FROM recurring WHERE active = 1').all()
-  console.log('[recurring] rows:', JSON.stringify(rows))
   const created = []
 
   const run = db.transaction(() => {
     for (const r of rows) {
-      // Usa start_date se preenchida, senão created_at
       const startStr = (r.start_date && r.start_date.trim())
         ? r.start_date
         : (r.created_at && r.created_at.trim())
           ? r.created_at
-          : todayStr  // fallback seguro
+          : todayStr
 
       const startDate = new Date(startStr + 'T00:00:00')
       if (isNaN(startDate.getTime())) continue
+
       const startYear  = startDate.getFullYear()
-      const startMonth = startDate.getMonth() // 0-based
+      const startMonth = startDate.getMonth()
       const startDay   = startDate.getDate()
 
-      // Limite de encerramento
       if (r.end_date && todayStr > r.end_date) continue
 
-      // Determina o mês de início de geração:
-      // Se start_date.day <= day_of_month → começa no mesmo mês
-      // Se start_date.day >  day_of_month → começa no mês seguinte
+      // Mês inicial de geração
       let genYear  = startYear
       let genMonth = startMonth
       if (startDay > r.day_of_month) {
@@ -589,7 +585,7 @@ ipcMain.handle('recurring:generateForMonth', (_) => {
         if (genMonth > 11) { genMonth = 0; genYear++ }
       }
 
-      // Itera todos os meses de genYear/genMonth até o mês atual
+      // Itera até o mês atual (inclusive)
       while (
         genYear < currentYear ||
         (genYear === currentYear && genMonth <= currentMonth)
@@ -597,13 +593,6 @@ ipcMain.handle('recurring:generateForMonth', (_) => {
         const prefix  = `${genYear}-${String(genMonth + 1).padStart(2, '0')}`
         const dayStr  = String(r.day_of_month).padStart(2, '0')
         const dateStr = `${prefix}-${dayStr}`
-
-        // Só gera se a data de lançamento já chegou
-        if (dateStr > todayStr) {
-          genMonth++
-          if (genMonth > 11) { genMonth = 0; genYear++ }
-          continue
-        }
 
         if (r.end_date && dateStr > r.end_date) break
 
@@ -614,19 +603,25 @@ ipcMain.handle('recurring:generateForMonth', (_) => {
         ).get(r.description, r.amount, r.type, prefix)
 
         if (!exists) {
+          // Data passou → done e ajusta saldo; ainda não chegou → pending
+          const isDone = dateStr <= todayStr
+          const status = isDone ? 'done' : 'pending'
+
           const result = db.prepare(
             `INSERT INTO transactions
              (description, amount, type, category_id, account_id,
               date, tags, notes, status, due_date)
              VALUES (?,?,?,?,?,?,?,?,?,?)`
           ).run(r.description, r.amount, r.type, r.category_id, r.account_id,
-                dateStr, r.tags, r.notes, 'done', dateStr)
+                dateStr, r.tags, r.notes, status, dateStr)
 
-          db.prepare(
-            r.type === 'income'
-              ? 'UPDATE accounts SET balance = balance + ? WHERE id = ?'
-              : 'UPDATE accounts SET balance = balance - ? WHERE id = ?'
-          ).run(r.amount, r.account_id)
+          if (isDone) {
+            db.prepare(
+              r.type === 'income'
+                ? 'UPDATE accounts SET balance = balance + ? WHERE id = ?'
+                : 'UPDATE accounts SET balance = balance - ? WHERE id = ?'
+            ).run(r.amount, r.account_id)
+          }
 
           const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid)
           created.push({ ...row, tags: JSON.parse(row.tags || '[]') })
