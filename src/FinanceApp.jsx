@@ -273,10 +273,11 @@ useEffect(() => {
     }
     setShowModal(null); setEditTarget(null);
   }, [accForm, editTarget]);
-  const deleteAcc = useCallback(async (id) => {
-    if (!window.confirm("Excluir esta conta? Movimentações associadas perderão a referência.")) return;
-    if (window.db) { try { await window.db.accounts.delete(id); } catch (err) { console.error(err); return; } }
-    setAccounts(prev => prev.filter(a => a.id !== id));
+  const deleteAcc = useCallback((id) => {
+    showConfirm("Excluir esta conta? Movimentações associadas perderão a referência.", async () => {
+      if (window.db) { try { await window.db.accounts.delete(id); } catch (err) { console.error(err); return; } }
+      setAccounts(prev => prev.filter(a => a.id !== id));
+    });
   }, []);
 
 // ── Investment CRUD ───────────────────────────────────────
@@ -294,10 +295,11 @@ useEffect(() => {
     }
     setShowModal(null); setEditTarget(null);
   }, [invForm, editTarget]);
-  const deleteInv = useCallback(async (id) => {
-    if (!window.confirm("Excluir este investimento?")) return;
-    if (window.db) { try { await window.db.investments.delete(id); } catch (err) { console.error(err); return; } }
-    setInvestments(prev => prev.filter(i => i.id !== id));
+  const deleteInv = useCallback((id) => {
+    showConfirm("Excluir este investimento?", async () => {
+      if (window.db) { try { await window.db.investments.delete(id); } catch (err) { console.error(err); return; } }
+      setInvestments(prev => prev.filter(i => i.id !== id));
+    });
   }, []);
 
 // ── Goal CRUD ─────────────────────────────────────────────
@@ -315,10 +317,11 @@ useEffect(() => {
     }
     setShowModal(null); setEditTarget(null);
   }, [goalForm, editTarget]);
-  const deleteGoal = useCallback(async (id) => {
-    if (!window.confirm("Excluir esta meta?")) return;
-    if (window.db) { try { await window.db.goals.delete(id); } catch (err) { console.error(err); return; } }
-    setGoals(prev => prev.filter(g => g.id !== id));
+  const deleteGoal = useCallback((id) => {
+    showConfirm("Excluir esta meta?", async () => {
+      if (window.db) { try { await window.db.goals.delete(id); } catch (err) { console.error(err); return; } }
+      setGoals(prev => prev.filter(g => g.id !== id));
+    });
   }, []);
 
 // ── Budget edit ───────────────────────────────────────────
@@ -362,10 +365,11 @@ useEffect(() => {
     setShowModal(null); setEditTarget(null)
   }, [catForm, editTarget])
 
-  const deleteCat = useCallback(async (id) => {
-    if (!window.confirm('Excluir esta categoria? Movimentações perderão a referência.')) return
-    if (window.db) await window.db.categories.delete(id)
-    setCategories(prev => prev.filter(c => c.id !== id))
+  const deleteCat = useCallback((id) => {
+    showConfirm('Excluir esta categoria? Movimentações perderão a referência.', async () => {
+      if (window.db) await window.db.categories.delete(id)
+      setCategories(prev => prev.filter(c => c.id !== id))
+    });
   }, [])
 
   const openAddRec = () => {
@@ -414,10 +418,11 @@ useEffect(() => {
     setShowModal(null); setEditTarget(null)
   }, [recForm, editTarget])
 
-  const deleteRec = useCallback(async (id) => {
-    if (!window.confirm('Excluir este lançamento fixo?')) return
-    if (window.db) await window.db.recurring.delete(id)
-    setRecurring(prev => prev.filter(r => r.id !== id))
+  const deleteRec = useCallback((id) => {
+    showConfirm('Excluir este lançamento fixo?', async () => {
+      if (window.db) await window.db.recurring.delete(id)
+      setRecurring(prev => prev.filter(r => r.id !== id))
+    });
   }, [])
 
 // ── Credit Cards CRUD ─────────────────────────────────────────
@@ -444,11 +449,12 @@ useEffect(() => {
     setShowModal(null); setEditTarget(null)
   }, [cardForm, editTarget])
 
-  const deleteCard = useCallback(async (id) => {
-    if (!window.confirm('Excluir este cartão e todos os gastos?')) return
-    if (window.db) await window.db.creditCards.delete(id)
-    setCreditCards(prev => prev.filter(c => c.id !== id))
-    if (selectedCard?.id === id) setSelectedCard(null)
+  const deleteCard = useCallback((id) => {
+    showConfirm('Excluir este cartão e todos os gastos?', async () => {
+      if (window.db) await window.db.creditCards.delete(id)
+      setCreditCards(prev => prev.filter(c => c.id !== id))
+      if (selectedCard?.id === id) setSelectedCard(null)
+    });
   }, [selectedCard])
 
   const loadCardExpenses = useCallback(async (cardId, billingMonth) => {
@@ -1574,13 +1580,18 @@ useEffect(() => {
                   alert(`Backup salvo em:\n${path}`)
                 }}>💾 Fazer backup</button>
               <button style={{ ...s.btn("ghost"), fontSize: 12, padding: "6px 10px", justifyContent: "center", borderColor: "#F59E0B", color: "#F59E0B" }}
-                onClick={async () => {
-                  if (!window.confirm("Restaurar um backup irá substituir todos os dados atuais. Continuar?")) return
-                  const path = await window.db.openRestoreDialog()
-                  if (!path) return
-                  await window.db.restore(path)
-                  alert("Backup restaurado! O app será recarregado.")
-                  location.reload()
+                onClick={() => {
+                  showConfirm(
+                    "Restaurar um backup irá substituir todos os dados atuais. Continuar?",
+                    async () => {
+                      const path = await window.db.openRestoreDialog()
+                      if (!path) return
+                      await window.db.restore(path)
+                      showConfirm("Backup restaurado! Clique em Confirmar para recarregar o app.", () => {
+                        location.reload()
+                      })
+                    }
+                  )
                 }}>♻️ Restaurar backup</button>
             </div>
           )}
@@ -2160,6 +2171,29 @@ useEffect(() => {
       }}
     />
   )}
+
+  {confirmDialog && (
+    <div style={s.modal} onClick={() => setConfirmDialog(null)}>
+      <div style={{ ...s.modalBox, width: 380 }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 20 }}>
+          {confirmDialog.message}
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            style={{ ...s.btn('ghost'), flex: 1, justifyContent: 'center' }}
+            onClick={() => setConfirmDialog(null)}>
+            Cancelar
+          </button>
+          <button
+            style={{ ...s.btn('danger'), flex: 1, justifyContent: 'center' }}
+            onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
   </div>
   );
 }
