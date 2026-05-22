@@ -627,7 +627,11 @@ useEffect(() => {
             <select style={{ ...s.select, width: "auto" }} value={filterYear} onChange={e => setFilterYear(+e.target.value)}>
               {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
             </select>
-            <button style={s.btn("primary")} onClick={openAddTx}>+ Lançamento</button>
+            <div>
+              <button style={s.btn("primary")} onClick={openAddTx}>+ Lançamento</button>
+              <div style={{ color: "#6B7280", fontSize: 13, marginTop: 2, textAlign: "center" }}>ctrl + n</div>
+            </div>
+            
           </div>
         </div>
 
@@ -835,7 +839,10 @@ useEffect(() => {
               setShowAporteModal(true)
             }}>💸 Aportar conta → investimento</button>
           <button style={s.btn('ghost')} onClick={() => setShowModal('import')}>📂 Importar extrato</button>
-          <button style={s.btn("primary")} onClick={openAddTx}>➕ Nova movimentação</button>
+          <div>
+            <button style={s.btn("primary")} onClick={openAddTx}>+ Nova movimentação</button>
+            <div style={{ color: "#6B7280", fontSize: 13, marginTop: 2, textAlign: "center" }}>ctrl + n</div>
+          </div>          
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {[
