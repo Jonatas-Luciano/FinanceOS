@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
 
 permissions:
   contents: write
@@ -21,10 +21,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Instalar dependências Python (Windows)
-        if: matrix.os == 'windows-latest'
-        run: npm config set msvs_version 2022
 
       - run: npm install
 
