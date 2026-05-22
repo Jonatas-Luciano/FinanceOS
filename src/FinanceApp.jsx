@@ -1656,7 +1656,14 @@ useEffect(() => {
             <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>{editTarget ? "Editar Movimentação" : "Nova Movimentação"}</div>
             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
               {["expense","income","transfer"].map(type => (
-                <button key={type} onClick={() => setTxForm(f => ({ ...f, type }))} style={{ ...s.btn(txForm.type === type ? "primary" : "ghost"), flex: 1, justifyContent: "center" }}>
+                <button key={type} onClick={() => {
+                  if (type === 'transfer') {
+                    const firstDest = accounts.find(a => a.id !== +txForm.account_id)
+                    setTxForm(f => ({ ...f, type, to_account_id: firstDest?.id || '' }))
+                  } else {
+                    setTxForm(f => ({ ...f, type }))
+                  }
+                }} style={{ ...s.btn(txForm.type === type ? "primary" : "ghost"), flex: 1, justifyContent: "center" }}>
                   {type === "expense" ? "📤 Despesa" : type === "income" ? "📥 Receita" : "↔ Transf."}
                 </button>
               ))}
@@ -1706,7 +1713,13 @@ useEffect(() => {
               <div style={{ ...s.fr, marginBottom: 20 }}>
                 <div style={{ ...s.label, marginBottom: 4 }}>Conta de Destino</div>
                 <select style={s.select} value={txForm.to_account_id || ''}
-                  onChange={e => setTxForm(f => ({ ...f, to_account_id: +e.target.value }))}>
+                  onChange={e => setTxForm(f => ({ ...f, to_account_id: +e.target.value }))}
+                  ref={el => {
+                    if (el && !txForm.to_account_id) {
+                      const firstOpt = accounts.find(a => a.id !== +txForm.account_id)
+                      if (firstOpt) setTxForm(f => ({ ...f, to_account_id: firstOpt.id }))
+                    }
+                  }}>
                   {accounts
                     .filter(a => a.id !== +txForm.account_id)
                     .map(a => <option key={a.id} value={a.id}>{a.name} ({a.bank})</option>)}
