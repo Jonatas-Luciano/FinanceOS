@@ -47,7 +47,7 @@
     "publish": {
       "provider": "github",
       "owner": "Jonatas-Luciano",
-      "repo": "https://github.com/Jonatas-Luciano/FinanceOS"
+      "repo": "FinanceOS"
     }
   }
 }
