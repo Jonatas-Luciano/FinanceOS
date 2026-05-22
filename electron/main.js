@@ -250,8 +250,22 @@ ipcMain.handle('transactions:list', (_, { month, year } = {}) => {
 
 ipcMain.handle('transactions:create', (_, tx) => {
   const { description, amount, type, category_id, account_id,
-        to_account_id = null, date, tags, notes, status = 'done', due_date = '' } = tx
+      date, tags, notes, status = 'done', due_date = '' } = tx
+  // Log temporário — remover após confirmar o fix
+  const to_account_id = tx.to_account_id ? parseInt(tx.to_account_id) : null
+
+
   const tagsJson = JSON.stringify(Array.isArray(tags) ? tags : [])
+
+  
+  // Log temporário — remover após confirmar o fix
+  console.log('[transfer debug]', {
+    type,
+    account_id,
+    to_account_id,
+    raw_to_account_id: tx.to_account_id,
+    typeof_raw: typeof tx.to_account_id,
+  })
 
   const run = db.transaction(() => {
     const result = db.prepare(

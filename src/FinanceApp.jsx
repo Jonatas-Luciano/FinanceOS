@@ -249,7 +249,16 @@ useEffect(() => {
   };
   const saveTx = useCallback(async () => {
     if (!txForm.description || !txForm.amount) return;
-    if (txForm.type === 'transfer' && !txForm.to_account_id) return
+      console.log('[saveTx debug]', {
+      type: txForm.type,
+      account_id: txForm.account_id,
+      to_account_id: txForm.to_account_id,
+      typeof_to: typeof txForm.to_account_id,
+    })
+    if (txForm.type === 'transfer' && !txForm.to_account_id) {
+      alert('Selecione a conta de destino da transferência.')
+      return
+    }
     const payload = { ...txForm, amount: parseFloat(txForm.amount), tags: txForm.tags ? txForm.tags.split(",").map(t => t.trim()).filter(Boolean) : [] };
     if (editTarget) {
       if (window.db) {
