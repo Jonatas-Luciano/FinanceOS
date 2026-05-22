@@ -7,7 +7,8 @@
     "build": "vite build",
     "electron": "electron .",
     "dev:electron": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",    
-    "dist": "vite build && electron-builder"
+    "dist": "vite build && electron-builder",
+    "publish": "vite build && electron-builder --publish always"
   },
   "dependencies": {
     "better-sqlite3": "^9.4.3",
@@ -32,6 +33,20 @@
     ],
     "directories": {
       "output": "release"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Jonatas-Luciano",
+      "repo": "https://github.com/Jonatas-Luciano/FinanceOS"
     }
   }
 }
