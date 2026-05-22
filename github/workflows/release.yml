@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
 
 jobs:
   release:
@@ -20,6 +20,9 @@ jobs:
           node-version: 20
 
       - run: npm install
+
+      - name: Recompilar better-sqlite3 para Electron
+        run: npx electron-rebuild -f -w better-sqlite3
 
       - name: Build e publicar
         env:
