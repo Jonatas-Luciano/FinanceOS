@@ -1263,7 +1263,7 @@ useEffect(() => {
                 } else {
                   alert('Nenhum lançamento novo para gerar neste mês.')
                 }
-              }}>⚡ Gerar pendentes ({monthNames[filterMonth]})</button>
+              }}>⚡ Gerar pendentes </button>
             )}
             <button style={s.btn('primary')} onClick={openAddRec}>+ Novo fixo</button>
           </div>
