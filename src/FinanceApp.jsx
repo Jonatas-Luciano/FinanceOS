@@ -1261,7 +1261,7 @@ useEffect(() => {
                   const parts = []
                     if (done) parts.push(`${done} efetivado(s)`)
                     if (pending) parts.push(`${pending} pendente(s)`)
-                      alert(`${news.length} lançamento(s) gerado(s): ${parts.join(', ')}.`)
+                      showConfirm(`${news.length} lançamento(s) gerado(s): ${parts.join(', ')}.`, () => {});
                   // Recarrega contas para refletir saldos atualizados
                   const accs = await window.db.accounts.list()
                   setAccounts(accs)
