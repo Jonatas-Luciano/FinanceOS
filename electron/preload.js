@@ -198,4 +198,9 @@ contextBridge.exposeInMainWorld('db', {
   // ── Utilitários ──────────────────────────────────────────────
   /** Retorna o caminho do arquivo .db (para backup manual). */
   exportPath: () => invoke('db:exportPath'),
+  backup:     (destPath) => invoke('db:backup', destPath),
+  restore:    (srcPath)  => invoke('db:restore', srcPath),
+
+  saveBackupDialog:  () => invoke('dialog:saveBackup'),
+  openRestoreDialog: () => invoke('dialog:openRestore'),
 })

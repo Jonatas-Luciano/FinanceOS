@@ -1563,7 +1563,27 @@ useEffect(() => {
         </nav>
         <div style={{ padding: "16px 20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 6 }}>Patrimônio total</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#8B5CF6" }}>{fmtCompact(netWorth)}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#8B5CF6", marginBottom: 12 }}>{fmtCompact(netWorth)}</div>
+          {window.db && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <button style={{ ...s.btn("ghost"), fontSize: 12, padding: "6px 10px", justifyContent: "center" }}
+                onClick={async () => {
+                  const path = await window.db.saveBackupDialog()
+                  if (!path) return
+                  await window.db.backup(path)
+                  alert(`Backup salvo em:\n${path}`)
+                }}>💾 Fazer backup</button>
+              <button style={{ ...s.btn("ghost"), fontSize: 12, padding: "6px 10px", justifyContent: "center", borderColor: "#F59E0B", color: "#F59E0B" }}
+                onClick={async () => {
+                  if (!window.confirm("Restaurar um backup irá substituir todos os dados atuais. Continuar?")) return
+                  const path = await window.db.openRestoreDialog()
+                  if (!path) return
+                  await window.db.restore(path)
+                  alert("Backup restaurado! O app será recarregado.")
+                  location.reload()
+                }}>♻️ Restaurar backup</button>
+            </div>
+          )}
         </div>
       </div>
 
