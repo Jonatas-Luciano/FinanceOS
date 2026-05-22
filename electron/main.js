@@ -585,10 +585,13 @@ ipcMain.handle('recurring:generateForMonth', (_) => {
         if (genMonth > 11) { genMonth = 0; genYear++ }
       }
 
+      let maxYear  = currentYear
+      let maxMonth = currentMonth + 1
+      if (maxMonth > 11) { maxMonth = 0; maxYear++ }
       // Itera até o mês atual (inclusive)
       while (
-        genYear < currentYear ||
-        (genYear === currentYear && genMonth <= currentMonth)
+        genYear < maxYear ||
+        (genYear === maxYear && genMonth <= maxMonth)
       ) {
         const prefix  = `${genYear}-${String(genMonth + 1).padStart(2, '0')}`
         const dayStr  = String(r.day_of_month).padStart(2, '0')
