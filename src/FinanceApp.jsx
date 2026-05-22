@@ -124,8 +124,14 @@ export default function FinanceOS() {
   const [showGuide, setShowGuide] = useState(false)
   const [dashFrom, setDashFrom] = useState(new Date(thisYear, thisMonth, 1).toISOString().split('T')[0])
   const [dashTo, setDashTo] = useState(new Date().toISOString().split('T')[0])
+  const [confirmDialog, setConfirmDialog] = useState(null)
 
-  useEffect(() => {
+
+const showConfirm = (message, onConfirm) => {
+  setConfirmDialog({ message, onConfirm })
+}
+
+useEffect(() => {
   if (!window.db || !dbReady) return;
   const loadInitialReport = async () => {
     try {
