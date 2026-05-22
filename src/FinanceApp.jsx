@@ -171,6 +171,17 @@ useEffect(() => {
       .then(setTransactions).catch(console.error);
   }, [filterMonth, filterYear, dbReady]);
 
+useEffect(() => {
+  const handler = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      e.preventDefault()
+      openAddTx()
+    }
+  }
+  window.addEventListener('keydown', handler)
+  return () => window.removeEventListener('keydown', handler)
+}, [accounts, categories])
+
   // Derived
   const monthTx = useMemo(() => transactions.filter(t => {
     const d = new Date(t.date + "T00:00:00");
@@ -238,6 +249,7 @@ useEffect(() => {
   };
   const saveTx = useCallback(async () => {
     if (!txForm.description || !txForm.amount) return;
+    if (txForm.type === 'transfer' && !txForm.to_account_id) return
     const payload = { ...txForm, amount: parseFloat(txForm.amount), tags: txForm.tags ? txForm.tags.split(",").map(t => t.trim()).filter(Boolean) : [] };
     if (editTarget) {
       if (window.db) {
@@ -615,7 +627,11 @@ useEffect(() => {
             <select style={{ ...s.select, width: "auto" }} value={filterYear} onChange={e => setFilterYear(+e.target.value)}>
               {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map(y => <option key={y} value={y}>{y}</option>)}
             </select>
-            <button style={s.btn("primary")} onClick={openAddTx}>+ Lançamento</button>
+            <div>
+              <button style={s.btn("primary")} onClick={openAddTx}>+ Lançamento</button>
+              <div style={{ color: "#6B7280", fontSize: 13, marginTop: 2, textAlign: "center" }}>ctrl + n</div>
+            </div>
+            
           </div>
         </div>
 
@@ -823,7 +839,10 @@ useEffect(() => {
               setShowAporteModal(true)
             }}>💸 Aportar conta → investimento</button>
           <button style={s.btn('ghost')} onClick={() => setShowModal('import')}>📂 Importar extrato</button>
-          <button style={s.btn("primary")} onClick={openAddTx}>➕ Nova movimentação</button>
+          <div>
+            <button style={s.btn("primary")} onClick={openAddTx}>+ Nova movimentação</button>
+            <div style={{ color: "#6B7280", fontSize: 13, marginTop: 2, textAlign: "center" }}>ctrl + n</div>
+          </div>          
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
           {[

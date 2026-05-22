@@ -404,11 +404,10 @@ ipcMain.handle('transactions:createBatch', (_, transactions) => {
         }
       }
 
-      const row = db.prepare(
-        'SELECT * FROM transactions WHERE id = ?'
-      ).get(result.lastInsertRowid)
-
-      saved.push({ ...row, tags: JSON.parse(row.tags || '[]') })
+      if (result.changes > 0) {
+        const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(result.lastInsertRowid)
+        saved.push({ ...row, tags: JSON.parse(row.tags || '[]') })
+      }
     }
 
     return saved
