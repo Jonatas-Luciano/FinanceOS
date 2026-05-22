@@ -378,6 +378,11 @@ ipcMain.handle('transactions:confirm', (_, id) => {
       db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(tx.amount, tx.account_id)
     else if (tx.type === 'expense')
       db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(tx.amount, tx.account_id)
+    else if (tx.type === 'transfer') {
+      db.prepare('UPDATE accounts SET balance = balance - ? WHERE id = ?').run(tx.amount, tx.account_id)
+      if (tx.to_account_id)
+        db.prepare('UPDATE accounts SET balance = balance + ? WHERE id = ?').run(tx.amount, tx.to_account_id)
+    }
     const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id)
     return { ...row, tags: JSON.parse(row.tags || '[]') }
   })
