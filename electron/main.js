@@ -8,6 +8,27 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const Database = require('better-sqlite3')
 
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    const windows = BrowserWindow.getAllWindows()
+    if (windows.length) {
+      const win = windows[0]
+      if (win.isMinimized()) win.restore()
+      win.focus()
+    }
+  })
+
+  app.whenReady().then(() => {
+    initDatabase()
+    createWindow()
+    app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
+  })
+}
+
 // ─── Banco de Dados ──────────────────────────────────────────
 const dbPath = path.join(app.getPath('userData'), 'financeos.db')
 let db
@@ -934,12 +955,6 @@ function createWindow() {
     win.loadFile(path.join(__dirname, '../dist/index.html'))
   }
 }
-
-app.whenReady().then(() => {
-  initDatabase()
-  createWindow()
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow() })
-})
 
 app.on('window-all-closed', () => {
   if (db) db.close()
