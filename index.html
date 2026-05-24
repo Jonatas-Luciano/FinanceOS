@@ -4,6 +4,13 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FinanceOS</title>
+      <style>
+        input[type='date']::-webkit-calendar-picker-indicator,
+        input[type='month']::-webkit-calendar-picker-indicator {
+          filter: invert(1) sepia(0) saturate(0) brightness(2);
+          cursor: pointer;
+        }
+      </style>
   </head>
   <body>
     <div id="root"></div>
