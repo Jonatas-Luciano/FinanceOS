@@ -123,8 +123,8 @@ export default function FinanceOS() {
   const [cardForm, setCardForm] = useState({ name: '', limit_amount: '', closing_day: 10, due_day: 15, account_id: '', color: '#EC4899'})
   const [cardExpForm, setCardExpForm] = useState({ description: '', amount: '', category_id: '', date: new Date().toISOString().split('T')[0], notes: '', installments: 1 })
   const [showGuide, setShowGuide] = useState(false)
-  const [dashFrom, setDashFrom] = useState(new Date(thisYear, thisMonth, 1).toISOString().split('T')[0])
-  const [dashTo, setDashTo] = useState(new Date().toISOString().split('T')[0])
+  const dashFrom = new Date(filterYear, filterMonth, 1).toISOString().split('T')[0]
+  const dashTo = new Date(filterYear, filterMonth + 1, 0).toISOString().split('T')[0]
   const [confirmDialog, setConfirmDialog] = useState(null)
 
 
