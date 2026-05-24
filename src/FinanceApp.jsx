@@ -88,6 +88,7 @@ function DonutChart({ segments, size = 120 }) {
 export default function FinanceOS() {
   const [page, setPage] = useState("dashboard");
   const [transactions, setTransactions] = useState(MOCK_TRANSACTIONS);
+  const [allTransactions, setAllTransactions] = useState([]);
   const [accounts, setAccounts] = useState(MOCK_ACCOUNTS);
   const [categories, setCategories] = useState(MOCK_CATEGORIES);
   const [investments, setInvestments] = useState(MOCK_INVESTMENTS);
@@ -159,6 +160,8 @@ useEffect(() => {
         setAccounts(accs); setCategories(cats);
         setInvestments(invs); setGoals(gls); setRecurring(recs); setCreditCards(cards);
         setDbReady(true);
+        // Carrega todas as transações para o gráfico histórico
+        window.db.transactions.list().then(setAllTransactions).catch(console.error);
       } catch (err) { if (!cancelled) setDbError(err.message); }
     }
     loadAll();
@@ -224,7 +227,7 @@ useEffect(() => {
   const monthlyTrend = useMemo(() => Array.from({ length: 6 }, (_, i) => {
     const d = new Date(thisYear, thisMonth - 5 + i, 1);
     const m = d.getMonth(), y = d.getFullYear();
-    const tx = transactions.filter(t => { const td = new Date(t.date + "T00:00:00"); return td.getMonth() === m && td.getFullYear() === y; });
+    const tx = allTransactions.filter(t => { const td = new Date(t.date + "T00:00:00"); return td.getMonth() === m && td.getFullYear() === y; });
     return { label: monthNames[m], income: tx.filter(t => t.type === "income").reduce((s, t) => s + t.amount, 0), expense: tx.filter(t => t.type === "expense").reduce((s, t) => s + t.amount, 0) };
   }), [transactions]);
 
@@ -260,10 +263,14 @@ useEffect(() => {
     if (editTarget) {
       if (window.db) {
         try { const saved = await window.db.transactions.update({ id: editTarget.id, ...payload }); setTransactions(prev => prev.map(t => t.id === editTarget.id ? saved : t)); const accs = await window.db.accounts.list(); setAccounts(accs); } catch (err) { console.error(err); return; }
-      } else { setTransactions(prev => prev.map(t => t.id === editTarget.id ? { ...payload, id: editTarget.id } : t)); }
+      } else { setTransactions(prev => prev.map(t => t.id === editTarget.id ? { ...payload, id: editTarget.id } : t));
+      setAllTransactions(prev => prev.map(t => t.id === editTarget.id ? saved : t));
+      }
     } else {
       if (window.db) {
-        try { const saved = await window.db.transactions.create(payload); setTransactions(prev => [saved, ...prev]); const accs = await window.db.accounts.list(); setAccounts(accs); } catch (err) { console.error(err); return; }
+        try { const saved = await window.db.transactions.create(payload); setTransactions(prev => [saved, ...prev]); 
+        setAllTransactions(prev => [saved, ...prev]);
+        const accs = await window.db.accounts.list(); setAccounts(accs); } catch (err) { console.error(err); return; }
       } else {
         setTransactions(prev => [{ ...payload, id: Date.now() }, ...prev]);
         if (payload.account_id) setAccounts(prev => prev.map(a => a.id === +payload.account_id ? { ...a, balance: a.balance + (payload.type === "income" ? payload.amount : -payload.amount) } : a));
@@ -280,6 +287,7 @@ useEffect(() => {
       if (tx?.account_id) setAccounts(prev => prev.map(a => a.id === tx.account_id ? { ...a, balance: a.balance + (tx.type === "income" ? -tx.amount : tx.amount) } : a));
     }
     setTransactions(prev => prev.filter(t => t.id !== id));
+    setAllTransactions(prev => prev.filter(t => t.id !== id));
   }, [transactions]);
 
 // ── Account CRUD ──────────────────────────────────────────
