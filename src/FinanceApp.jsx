@@ -687,18 +687,29 @@ useEffect(() => {
             <div style={s.sectionTitle}>Despesas por Categoria</div>
             {expByCategory.length === 0
               ? <div style={{ color: "#6B7280", fontSize: 13 }}>Sem despesas neste mês.</div>
-              : <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-                  <DonutChart segments={expByCategory.slice(0, 5).map(c => ({ value: c.total, color: c.color }))} size={100} />
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
-                    {expByCategory.slice(0, 5).map(c => (
-                      <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <div style={s.pill(c.color)} />
-                        <span style={{ flex: 1, fontSize: 12 }}>{c.name}</span>
-                        <span style={{ fontSize: 12, fontWeight: 600 }}>{fmt(c.total)}</span>
+              : (() => {
+                  const top5 = expByCategory.slice(0, 5);
+                  const othersTotal = expByCategory.slice(5).reduce((s, c) => s + c.total, 0);
+                  const othersEntry = othersTotal > 0 ? { id: '__others__', name: 'Outras', icon: '📦', color: '#6B7280', total: othersTotal } : null;
+                  const listItems = othersEntry ? [...top5, othersEntry] : top5;
+                  const chartSegments = othersEntry
+                    ? [...top5.map(c => ({ value: c.total, color: c.color })), { value: othersTotal, color: '#6B7280' }]
+                    : top5.map(c => ({ value: c.total, color: c.color }));
+                  return (
+                    <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                      <DonutChart segments={chartSegments} size={100} />
+                      <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                        {listItems.map(c => (
+                          <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div style={s.pill(c.color)} />
+                            <span style={{ flex: 1, fontSize: 12 }}>{c.name}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600 }}>{fmt(c.total)}</span>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
+                  );
+                })()
             }
           </div>
         </div>
